@@ -1,0 +1,34 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="第 1 页" id="Hp48CXQ5NagEgoC4bXHn">
+    <mxGraphModel dx="173" dy="542" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;font-size: 35px;&quot;&gt;Stage 6&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="170" x="1052.5" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-2" edge="1" parent="1" source="-TLHSmvfYgD3oVi-zC9N-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="-TLHSmvfYgD3oVi-zC9N-5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Use SIFT or ORB algorithm to catch the features of the&amp;nbsp;static background, like&amp;nbsp;green road signs, streetlights, and the central median, at a fixed distance on the right side of the image.&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;And match them&amp;nbsp;cross-frame&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="250" x="1132.5" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-4" edge="1" parent="1" source="-TLHSmvfYgD3oVi-zC9N-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="-TLHSmvfYgD3oVi-zC9N-8" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="&lt;p data-pm-slice=&quot;0 0 []&quot;&gt;Using the fixed camera viewpoint, sparse 3d cloud points by these background markers with fixed physical distances.&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;And rebuild road&#39;s 3d structure by these 3d cloud points.&lt;/span&gt;&lt;/p&gt;" vertex="1">
+          <mxGeometry height="120" width="250" x="1132.5" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-6" edge="1" parent="1" source="-TLHSmvfYgD3oVi-zC9N-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="-TLHSmvfYgD3oVi-zC9N-3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Input original video" vertex="1">
+          <mxGeometry height="40" width="140" x="890" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="-TLHSmvfYgD3oVi-zC9N-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="&lt;p data-pm-slice=&quot;0 0 []&quot;&gt;Output a 3D cloud point file&lt;/p&gt;" vertex="1">
+          <mxGeometry height="50" width="250" x="1132.5" y="560" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
