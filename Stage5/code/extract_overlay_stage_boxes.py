@@ -15,7 +15,7 @@ BBox = Tuple[int, int, int, int]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="從已疊加的藍/橘偵測框影片中抽出 Stage3/Stage4 候選框。")
-    parser.add_argument("--video", required=True, help="輸入影片路徑")
+    parser.add_argument("--video", default="../../123.mp4", help="輸入影片路徑")
     parser.add_argument("--stage3-output", default="outputs/stage3_overlay_boxes.json", help="藍色框輸出 JSON")
     parser.add_argument("--stage4-output", default="outputs/stage4_overlay_boxes.json", help="橘色框輸出 JSON")
     parser.add_argument("--sample-step", type=int, default=1, help="每幾幀抽一次；1 代表每幀")

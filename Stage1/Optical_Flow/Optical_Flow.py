@@ -3,7 +3,8 @@ import numpy as np
 import time
 
 INPUT_VIDEO = "../../123.mp4"
-OUTPUT_VIDEO = "Optical_Flow.mp4"
+OUTPUT_COMBINED = "Optical_Flow_combined.mp4"
+OUTPUT_FOREGROUND = "Optical_Flow.mp4"
 
 cap = cv2.VideoCapture(INPUT_VIDEO)
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -15,7 +16,8 @@ if not cap.isOpened():
     exit()
 
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter(OUTPUT_VIDEO, fourcc, fps, (W * 2, H))
+out_combined = cv2.VideoWriter(OUTPUT_COMBINED, fourcc, fps, (W * 2, H))
+out_foreground = cv2.VideoWriter(OUTPUT_FOREGROUND, fourcc, fps, (W, H))
 
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
@@ -60,12 +62,15 @@ while True:
     fg_frame  = cv2.bilateralFilter(frame, 9, 75, 75)
     fg_result = cv2.bitwise_and(fg_frame, fg_frame, mask=fg_mask)
 
+    # 輸出一：左右拼接對照
     left  = frame.copy()
     right = fg_result.copy()
     cv2.putText(left,  "Original",        (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
     cv2.putText(right, "Optical Flow FG", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+    out_combined.write(np.hstack([left, right]))
 
-    out.write(np.hstack([left, right]))
+    # 輸出二：只有去背結果
+    out_foreground.write(fg_result)
 
     prev_gray = curr_gray
 
@@ -75,7 +80,8 @@ while True:
         print(f"進度：{frame_count} / {total_frames} 幀 | 已處理 {elapsed:.1f} 秒")
 
 cap.release()
-out.release()
+out_combined.release()
+out_foreground.release()
 
 total_elapsed = time.time() - start_time
-print(f"✅ 完成，輸出：{OUTPUT_VIDEO}，總耗時 {total_elapsed:.1f} 秒")
+print(f"✅ 完成，輸出：{OUTPUT_COMBINED}（對照版）、{OUTPUT_FOREGROUND}（去背版），總耗時 {total_elapsed:.1f} 秒")

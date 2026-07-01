@@ -47,12 +47,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--history", type=int, default=60, help="每個物件保留幾幀中心點軌跡")
     parser.add_argument("--match-distance", type=float, default=80.0, help="無 track_id 時的中心點最近鄰匹配距離")
     parser.add_argument("--arrow-scale", type=float, default=5.0, help="光流箭頭放大倍率")
-    parser.add_argument(
-        "--flow-scale",
-        type=float,
-        default=1.0,
-        help="密集光流計算縮放比例；0.5 可大幅加速 1080p 影片，輸出仍為原尺寸",
-    )
+    parser.add_argument("--max-corners", type=int, default=30, help="每個偵測框內最多追蹤幾個特徵點")
+    parser.add_argument("--corner-quality", type=float, default=0.01, help="角點品質閾值，越低找到的點越多")
+    parser.add_argument("--corner-min-distance", type=int, default=5, help="角點之間的最小間距（像素）")
     parser.add_argument("--min-flow", type=float, default=0.35, help="低於此長度的平均光流視為靜止/不可靠")
     parser.add_argument(
         "--lane-split-x",
@@ -211,30 +208,55 @@ def clip_bbox(bbox: BBox, width: int, height: int) -> Optional[BBox]:
     return x1, y1, x2, y2
 
 
-def mean_flow_for_bbox(flow: np.ndarray, bbox: BBox, flow_scale: float) -> Tuple[float, float, float]:
+def mean_flow_for_bbox(
+    prev_gray: np.ndarray,
+    gray: np.ndarray,
+    bbox: BBox,
+    max_corners: int,
+    corner_quality: float,
+    corner_min_distance: int,
+) -> Tuple[float, float, float]:
     x1, y1, x2, y2 = bbox
-    if flow_scale != 1.0:
-        x1 = int(round(x1 * flow_scale))
-        y1 = int(round(y1 * flow_scale))
-        x2 = int(round(x2 * flow_scale))
-        y2 = int(round(y2 * flow_scale))
-        x1 = max(0, min(flow.shape[1] - 1, x1))
-        x2 = max(0, min(flow.shape[1], x2))
-        y1 = max(0, min(flow.shape[0] - 1, y1))
-        y2 = max(0, min(flow.shape[0], y2))
-    local_flow = flow[y1:y2, x1:x2]
-    if local_flow.size == 0:
+    roi_prev = prev_gray[y1:y2, x1:x2]
+    if roi_prev.size == 0:
         return 0.0, 0.0, 0.0
 
-    mag = np.linalg.norm(local_flow, axis=2)
-    threshold = max(0.05, float(np.percentile(mag, 60)))
-    mask = mag >= threshold
-    if not np.any(mask):
+    # 只在框內找特徵點（角點）
+    corners = cv2.goodFeaturesToTrack(
+        roi_prev,
+        maxCorners=max_corners,
+        qualityLevel=corner_quality,
+        minDistance=corner_min_distance,
+    )
+    if corners is None or len(corners) == 0:
         return 0.0, 0.0, 0.0
 
-    dx = float(np.mean(local_flow[..., 0][mask])) / flow_scale
-    dy = float(np.mean(local_flow[..., 1][mask])) / flow_scale
-    strength = float(np.mean(mag[mask])) / flow_scale
+    # 角點座標是框內的局部座標，要轉回整張畫面座標
+    corners[:, 0, 0] += x1
+    corners[:, 0, 1] += y1
+
+    # 用 LK 光流追蹤這些點到下一幀的位置
+    next_pts, status, _err = cv2.calcOpticalFlowPyrLK(
+        prev_gray,
+        gray,
+        corners,
+        None,
+        winSize=(15, 15),
+        maxLevel=2,
+        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03),
+    )
+
+    status = status.reshape(-1)
+    good_prev = corners[status == 1].reshape(-1, 2)
+    good_next = next_pts[status == 1].reshape(-1, 2)
+    if len(good_prev) == 0:
+        return 0.0, 0.0, 0.0
+
+    displacement = good_next - good_prev
+    mag = np.linalg.norm(displacement, axis=1)
+    dx = float(np.mean(displacement[:, 0]))
+    dy = float(np.mean(displacement[:, 1]))
+    strength = float(np.mean(mag))
     return dx, dy, strength
 
 
@@ -389,8 +411,6 @@ def print_progress(frame_index: int, total_frames: int, start_time: float) -> No
 
 def run() -> None:
     args = parse_args()
-    if not 0.1 <= args.flow_scale <= 1.0:
-        raise ValueError("--flow-scale must be between 0.1 and 1.0")
     use_stages = {stage.strip().lower() for stage in args.use_stages.split(",") if stage.strip()}
 
     stage3 = load_detections(args.stage3, "stage3") if "stage3" in use_stages else defaultdict(list)
@@ -419,11 +439,7 @@ def run() -> None:
     if not ok:
         raise RuntimeError("Input video has no frames.")
 
-    prev_gray_full = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-    if args.flow_scale != 1.0:
-        prev_gray = cv2.resize(prev_gray_full, None, fx=args.flow_scale, fy=args.flow_scale, interpolation=cv2.INTER_AREA)
-    else:
-        prev_gray = prev_gray_full
+    prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
     tracks = TrackStore(args.history, args.match_distance)
     frame_index = 0
     start_time = time.time()
@@ -433,24 +449,7 @@ def run() -> None:
         if not ok:
             break
         frame_index += 1
-        gray_full = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        if args.flow_scale != 1.0:
-            gray = cv2.resize(gray_full, None, fx=args.flow_scale, fy=args.flow_scale, interpolation=cv2.INTER_AREA)
-        else:
-            gray = gray_full
-
-        flow = cv2.calcOpticalFlowFarneback(
-            prev_gray,
-            gray,
-            None,
-            pyr_scale=0.5,
-            levels=3,
-            winsize=21,
-            iterations=3,
-            poly_n=5,
-            poly_sigma=1.2,
-            flags=0,
-        )
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         canvas = frame.copy()
         cv2.line(canvas, (width // 2, 0), (width // 2, height), (80, 80, 80), 1, cv2.LINE_AA)
@@ -462,7 +461,10 @@ def run() -> None:
                 continue
             detection.bbox = clipped
 
-            dx, dy, _strength = mean_flow_for_bbox(flow, clipped, args.flow_scale)
+            dx, dy, _strength = mean_flow_for_bbox(
+                prev_gray, gray, clipped,
+                args.max_corners, args.corner_quality, args.corner_min_distance,
+            )
             track_id = tracks.resolve_id(detection)
             tracks.update(track_id, detection.center)
             label, color = classify_direction(detection.center, width, dx, dy, args.min_flow, args)
