@@ -53,7 +53,7 @@ py roi_hog_svm.py detect --video 123.mp4 --model models/roi_hog_svm.yml --output
 
 The output video draws the fixed ROI and displays the SVM classification result for each frame.
 
-py roi_hog_svm.py preview --video 123.mp4 --frame 120 --output roi_preview.jpg
-py roi_hog_svm.py collect --video 123.mp4 --output-dir samples/unlabeled --step 15
+py roi_hog_svm.py preview --frame 120 --output roi_preview.jpg
+py roi_hog_svm.py collect --output-dir samples/unlabeled --step 15
 py roi_hog_svm.py train --positive-dir samples/positive --negative-dir samples/negative --model models/roi_hog_svm.yml
-py roi_hog_svm.py detect --video 123.mp4 --model models/roi_hog_svm.yml --output output_roi_hog_svm.mp4
+py roi_hog_svm.py detect --model models/roi_hog_svm.yml --output output_roi_hog_svm.mp4

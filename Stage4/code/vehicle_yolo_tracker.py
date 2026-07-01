@@ -163,8 +163,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="YOLO vehicle classification plus cross-frame IoU/centroid tracking."
     )
-    parser.add_argument("--source", required=True, help="Input video path, camera index, or stream URL.")
-    parser.add_argument("--output", default="outputs/tracked_vehicles.mp4", help="Annotated output video path.")
+    parser.add_argument("--source", default="../../123.mp4", help="Input video path, camera index, or stream URL.")
+    parser.add_argument("--output", default="YOLO_result.mp4", help="Annotated output video path.")
     parser.add_argument("--model", default="yolov8n.pt", help="Ultralytics YOLO model path/name.")
     parser.add_argument("--conf", type=float, default=0.35, help="Detection confidence threshold.")
     parser.add_argument("--iou", type=float, default=0.45, help="YOLO NMS IoU threshold.")

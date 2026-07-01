@@ -129,8 +129,8 @@ def process_video(input_path: str,
 
 
 def main():
-    INPUT_PATH  = r"123.mp4"
-    OUTPUT_PATH = r"123_orb.mp4"
+    INPUT_PATH  = "../../123.mp4"
+    OUTPUT_PATH = "orb.mp4"
 
     process_video(
         input_path    = INPUT_PATH,

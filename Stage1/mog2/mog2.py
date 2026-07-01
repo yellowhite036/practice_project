@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import time
 
-INPUT_VIDEO = "202.TS"
-OUTPUT_VIDEO = "303.mp4"
+INPUT_VIDEO = "../../123.mp4"
+OUTPUT_VIDEO = "mog2.mp4"
 
 cap = cv2.VideoCapture(INPUT_VIDEO)
 fps = cap.get(cv2.CAP_PROP_FPS)

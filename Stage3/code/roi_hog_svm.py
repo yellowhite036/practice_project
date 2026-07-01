@@ -240,7 +240,7 @@ def parse_roi_size(value: str) -> tuple[int, int]:
 
 
 def add_video_roi_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--video", type=Path, default=Path("123.mp4"))
+    parser.add_argument("--video", type=Path, default=Path("../../123.mp4"))
     parser.add_argument("--roi", type=parse_roi, default=DEFAULT_ROI, help="Fixed ROI as x,y,w,h. Default: 250,520,1350,310")
 
 

@@ -3,8 +3,8 @@ import numpy as np
 import time
 from ultralytics import YOLO
 
-INPUT_VIDEO = "202.TS"
-OUTPUT_VIDEO = "303.mp4"
+INPUT_VIDEO = "../../123.mp4"
+OUTPUT_VIDEO = "YOLO.mp4"
 
 model = YOLO("yolov8n-seg.pt")
 
