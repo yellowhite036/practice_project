@@ -143,22 +143,16 @@ def format_eta(seconds: float) -> str:
 
 def print_progress(frame_index: int, total_frames: int, start_time: float) -> None:
     elapsed = time.time() - start_time
-    fps = frame_index / elapsed if elapsed > 0 else 0.0
 
     if total_frames > 0:
         percent = min(100.0, frame_index / total_frames * 100)
-        remaining = (total_frames - frame_index) / fps if fps > 0 else 0.0
-        bar_len = 30
-        filled = int(bar_len * percent / 100)
-        bar = "#" * filled + "-" * (bar_len - filled)
         message = (
-            f"\r[{bar}] {percent:5.1f}% "
-            f"({frame_index}/{total_frames}) "
-            f"{fps:5.1f} fps  ETA {format_eta(remaining)}"
+            f"\r已處理 {frame_index}/{total_frames} 幀 "
+            f"({percent:5.1f}%)  已耗時 {format_eta(elapsed)}"
         )
     else:
-        # Total frame count unavailable (e.g. some streams); show a simple counter instead.
-        message = f"\r已處理 {frame_index} 幀  {fps:5.1f} fps  已耗時 {format_eta(elapsed)}"
+        # 無法取得總幀數時(例如某些串流),只顯示計數與耗時
+        message = f"\r已處理 {frame_index} 幀  已耗時 {format_eta(elapsed)}"
 
     sys.stdout.write(message)
     sys.stdout.flush()
