@@ -1,6 +1,8 @@
 import argparse
 import csv
 import json
+import sys
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -82,6 +84,7 @@ def parse_args() -> argparse.Namespace:
         help="右側車道背對駛離時該軸的正負號，影像座標 y 負向為向上",
     )
     parser.add_argument("--preview", action="store_true", help="處理時顯示視窗，按 q 離開")
+    parser.add_argument("--progress-step", type=int, default=30, help="每處理幾幀更新一次進度顯示")
     return parser.parse_args()
 
 
@@ -359,6 +362,38 @@ def draw_legend(frame: np.ndarray) -> None:
         y += 22
 
 
+def format_eta(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    minutes, secs = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours:d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def print_progress(frame_index: int, total_frames: int, start_time: float) -> None:
+    elapsed = time.time() - start_time
+    fps = frame_index / elapsed if elapsed > 0 else 0.0
+
+    if total_frames > 0:
+        percent = min(100.0, frame_index / total_frames * 100)
+        remaining = (total_frames - frame_index) / fps if fps > 0 else 0.0
+        bar_len = 30
+        filled = int(bar_len * percent / 100)
+        bar = "#" * filled + "-" * (bar_len - filled)
+        message = (
+            f"\r[{bar}] {percent:5.1f}% "
+            f"({frame_index}/{total_frames}) "
+            f"{fps:5.1f} fps  ETA {format_eta(remaining)}"
+        )
+    else:
+        # 某些串流無法取得總幀數，改用簡單計數顯示。
+        message = f"\r已處理 {frame_index} 幀  {fps:5.1f} fps  已耗時 {format_eta(elapsed)}"
+
+    sys.stdout.write(message)
+    sys.stdout.flush()
+
+
 def run() -> None:
     args = parse_args()
     if not 0.1 <= args.flow_scale <= 1.0:
@@ -376,6 +411,7 @@ def run() -> None:
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -397,6 +433,7 @@ def run() -> None:
         prev_gray = prev_gray_full
     tracks = TrackStore(args.history, args.match_distance)
     frame_index = 0
+    start_time = time.time()
 
     while True:
         ok, frame = cap.read()
@@ -449,6 +486,13 @@ def run() -> None:
                 break
 
         prev_gray = gray
+
+        if frame_index % args.progress_step == 0:
+            print_progress(frame_index, total_frames, start_time)
+
+    print_progress(frame_index, total_frames, start_time)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     cap.release()
     writer.release()

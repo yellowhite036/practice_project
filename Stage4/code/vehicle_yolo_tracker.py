@@ -4,6 +4,7 @@ import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
+from tqdm import tqdm
 
 import cv2
 import numpy as np
@@ -239,6 +240,7 @@ def main() -> None:
     args = parse_args()
     cap = open_capture(args.source)
     model = YOLO(args.model)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     tracker = IoUCentroidTracker(
         iou_threshold=args.track_iou,
         max_centroid_distance=args.track_distance,
@@ -259,6 +261,8 @@ def main() -> None:
     )
 
     frame_index = 0
+    progress = tqdm(total=total_frames if total_frames > 0 else None, unit="frame", desc="Processing")
+
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -287,7 +291,8 @@ def main() -> None:
                 break
 
         frame_index += 1
-
+        progress.update(1)
+    progress.close()
     cap.release()
     writer.release()
     if args.show:

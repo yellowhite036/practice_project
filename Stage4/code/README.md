@@ -60,3 +60,5 @@ py vehicle_yolo_tracker.py `
 4. 如果車框變化大但質心仍接近，使用質心距離補救。
 5. 成功匹配的車輛沿用原本 ID；新車輛取得新 ID。
 6. 消失超過 `--max-missed` 幀的軌跡會被移除。
+
+py vehicle_yolo_tracker.py --source 123.mp4 --output outputs/tracked_vehicles.mp4

@@ -86,3 +86,8 @@ frame_index,track_id,x1,y1,x2,y2,score
 - 太小或無效的框會略過。
 - 光流太弱會標為 `static/weak`，避免把雜訊誤判成車流方向。
 - Stage3 與 Stage4 可分開輸入，也可用 `--use-stages stage4` 只處理某一階段。
+
+
+
+py .\dense_optical_flow_tracks.py --video 123.mp4
+py .\extract_overlay_stage_boxes.py --video 123.mp4

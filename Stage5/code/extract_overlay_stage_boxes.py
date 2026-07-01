@@ -1,5 +1,7 @@
 import argparse
 import json
+import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -26,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--roi-y1", type=int, default=360, help="道路 ROI 上界")
     parser.add_argument("--roi-x2", type=int, default=1450, help="道路 ROI 右界")
     parser.add_argument("--roi-y2", type=int, default=860, help="道路 ROI 下界")
+    parser.add_argument("--progress-step", type=int, default=30, help="每處理幾幀更新一次進度顯示")
     return parser.parse_args()
 
 
@@ -129,16 +132,51 @@ def to_frame_list(records: Dict[int, List[dict]]) -> List[dict]:
     return [{"frame_index": idx, "boxes": boxes} for idx, boxes in sorted(records.items())]
 
 
+def format_eta(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    minutes, secs = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours:d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def print_progress(frame_index: int, total_frames: int, start_time: float) -> None:
+    elapsed = time.time() - start_time
+    fps = frame_index / elapsed if elapsed > 0 else 0.0
+
+    if total_frames > 0:
+        percent = min(100.0, frame_index / total_frames * 100)
+        remaining = (total_frames - frame_index) / fps if fps > 0 else 0.0
+        bar_len = 30
+        filled = int(bar_len * percent / 100)
+        bar = "#" * filled + "-" * (bar_len - filled)
+        message = (
+            f"\r[{bar}] {percent:5.1f}% "
+            f"({frame_index}/{total_frames}) "
+            f"{fps:5.1f} fps  ETA {format_eta(remaining)}"
+        )
+    else:
+        # Total frame count unavailable (e.g. some streams); show a simple counter instead.
+        message = f"\r已處理 {frame_index} 幀  {fps:5.1f} fps  已耗時 {format_eta(elapsed)}"
+
+    sys.stdout.write(message)
+    sys.stdout.flush()
+
+
 def run() -> None:
     args = parse_args()
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video: {args.video}")
 
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
     stage3_records: Dict[int, List[dict]] = defaultdict(list)
     stage4_records: Dict[int, List[dict]] = defaultdict(list)
 
     frame_index = 0
+    start_time = time.time()
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -148,6 +186,13 @@ def run() -> None:
             append_frame(stage3_records, frame_index, find_boxes(masks["stage3"], frame.shape, args))
             append_frame(stage4_records, frame_index, find_boxes(masks["stage4"], frame.shape, args))
         frame_index += 1
+
+        if frame_index % args.progress_step == 0:
+            print_progress(frame_index, total_frames, start_time)
+
+    print_progress(frame_index, total_frames, start_time)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     cap.release()
 
