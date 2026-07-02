@@ -89,7 +89,6 @@ frame_index,track_id,x1,y1,x2,y2,score
 
 
 
-py extract_overlay_stage_boxes.py --stage4-output outputs\123_stage4_overlay_boxes_refined.json                      
+py sparse_optical_flow.py                     
    
-py dense_optical_flow_tracks.py `                                
->>    --stage4 outputs\123_stage4_overlay_boxes_refined.json `  --output outputs\123_dense_flow_tracks_final_calibrated.mp4 `  --arrow-scale 7 `  --history 25 `  --match-distance 140 `  --min-flow 0.25 `  --flow-scale 0.5 `  --lane-split-x 850 `  --left-approach-axis y `  --left-approach-sign negative `  --right-depart-axis y `  --right-depart-sign negative
+py dense_optical_flow.py
