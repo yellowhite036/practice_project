@@ -1,16 +1,14 @@
 import argparse
-import csv
 import json
 import sys
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-
 
 Point = Tuple[int, int]
 BBox = Tuple[int, int, int, int]
@@ -20,10 +18,9 @@ BBox = Tuple[int, int, int, int]
 class Detection:
     frame_index: int
     bbox: BBox
-    track_id: Optional[str]
-    source_stage: str
-    score: Optional[float] = None
-    label: Optional[str] = None
+    track_id: Optional[str] = None
+    source_stage: str = "stage4"
+    label: Optional[str] = "vehicle"
 
     @property
     def center(self) -> Point:
@@ -33,23 +30,34 @@ class Detection:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="局部密集光流遮罩、Stage3/Stage4 物件框光流箭頭與車輛歷史軌跡繪製。"
+        description="偵測影片中的橘色標註框(stage4)並繪製密集光流箭頭與車輛歷史軌跡。"
     )
     parser.add_argument("--video", default="../../123.mp4", help="輸入影片路徑")
-    parser.add_argument("--stage3", help="Stage3 偵測框 JSON/CSV")
-    parser.add_argument("--stage4", help="Stage4 偵測框 JSON/CSV")
-    parser.add_argument("--output", default="outputs/flow_tracks.mp4", help="輸出影片路徑")
-    parser.add_argument(
-        "--use-stages",
-        default="stage3,stage4",
-        help="要作為遮罩的來源，例如 stage3,stage4 或只填 stage4",
-    )
+    parser.add_argument("--output", default="stage4_flow_tracks.mp4", help="輸出影片路徑")
+    parser.add_argument("--boxes-output", help="若指定路徑，額外把 stage4 偵測框存成 JSON")
+
+    # 框偵測相關參數
+    parser.add_argument("--sample-step", type=int, default=1, help="每幾幀偵測一次橘色框；1 代表每幀")
+    parser.add_argument("--min-width", type=int, default=30, help="候選框最小寬度")
+    parser.add_argument("--min-height", type=int, default=25, help="候選框最小高度")
+    parser.add_argument("--max-width", type=int, default=380, help="候選框最大寬度")
+    parser.add_argument("--max-height", type=int, default=180, help="候選框最大高度")
+    parser.add_argument("--max-height-ratio", type=float, default=0.55, help="候選框最大高度比例")
+    parser.add_argument("--roi-x1", type=int, default=420, help="道路 ROI 左界")
+    parser.add_argument("--roi-y1", type=int, default=360, help="道路 ROI 上界")
+    parser.add_argument("--roi-x2", type=int, default=1450, help="道路 ROI 右界")
+    parser.add_argument("--roi-y2", type=int, default=860, help="道路 ROI 下界")
+
+    # 光流追蹤相關參數
     parser.add_argument("--history", type=int, default=60, help="每個物件保留幾幀中心點軌跡")
     parser.add_argument("--match-distance", type=float, default=80.0, help="無 track_id 時的中心點最近鄰匹配距離")
     parser.add_argument("--arrow-scale", type=float, default=5.0, help="光流箭頭放大倍率")
-    parser.add_argument("--max-corners", type=int, default=30, help="每個偵測框內最多追蹤幾個特徵點")
-    parser.add_argument("--corner-quality", type=float, default=0.01, help="角點品質閾值，越低找到的點越多")
-    parser.add_argument("--corner-min-distance", type=int, default=5, help="角點之間的最小間距（像素）")
+    parser.add_argument(
+        "--flow-scale",
+        type=float,
+        default=1.0,
+        help="密集光流計算縮放比例；0.5 可大幅加速 1080p 影片，輸出仍為原尺寸",
+    )
     parser.add_argument("--min-flow", type=float, default=0.35, help="低於此長度的平均光流視為靜止/不可靠")
     parser.add_argument(
         "--lane-split-x",
@@ -85,117 +93,78 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_detections(path: Optional[str], stage_name: str) -> Dict[int, List[Detection]]:
-    if not path:
-        return defaultdict(list)
+# ---------------------------------------------------------------------------
+# Stage4 橘色框偵測
+# ---------------------------------------------------------------------------
 
-    file_path = Path(path)
-    if not file_path.exists():
-        raise FileNotFoundError(f"{stage_name} detections not found: {file_path}")
-
-    if file_path.suffix.lower() == ".json":
-        raw_items = json.loads(file_path.read_text(encoding="utf-8"))
-        if isinstance(raw_items, dict):
-            raw_items = raw_items.get("frames", raw_items.get("detections", []))
-        return _detections_from_json(raw_items, stage_name)
-
-    if file_path.suffix.lower() == ".csv":
-        with file_path.open("r", encoding="utf-8-sig", newline="") as f:
-            return _detections_from_csv(csv.DictReader(f), stage_name)
-
-    raise ValueError(f"Unsupported detection file format: {file_path.suffix}")
+def orange_mask(frame: np.ndarray) -> np.ndarray:
+    b, g, r = cv2.split(frame)
+    # 標註框接近純 BGR 橘色；用 BGR 門檻而非 HSV，避免道路標線被誤判。
+    orange = (
+        (r > 210) & (g > 70) & (g < 190) & (b < 80)
+        & ((r.astype(np.int16) - b.astype(np.int16)) > 150)
+    ).astype(np.uint8) * 255
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    return cv2.morphologyEx(orange, cv2.MORPH_CLOSE, kernel)
 
 
-def _detections_from_json(raw_items: Iterable[dict], stage_name: str) -> Dict[int, List[Detection]]:
-    detections: Dict[int, List[Detection]] = defaultdict(list)
-    for item in raw_items:
-        frame_index = int(item.get("frame_index", item.get("frame", item.get("frame_id", 0))))
-        boxes = item.get("boxes", item.get("objects", item.get("detections")))
-        if boxes is None:
-            boxes = [item]
+def find_boxes(mask: np.ndarray, frame_shape: Tuple[int, int, int], args: argparse.Namespace) -> List[BBox]:
+    height, width = frame_shape[:2]
+    roi_x1 = max(0, min(width - 1, args.roi_x1))
+    roi_x2 = max(0, min(width, args.roi_x2))
+    roi_y1 = max(0, min(height - 1, args.roi_y1))
+    roi_y2 = max(0, min(height, args.roi_y2))
 
-        for box_item in boxes:
-            bbox = _extract_bbox(box_item)
-            if bbox is None:
-                continue
-            detections[frame_index].append(
-                Detection(
-                    frame_index=frame_index,
-                    bbox=bbox,
-                    track_id=_optional_str(box_item.get("track_id", box_item.get("id"))),
-                    source_stage=stage_name,
-                    score=_optional_float(box_item.get("score", box_item.get("confidence"))),
-                    label=_optional_str(box_item.get("label", box_item.get("class"))),
-                )
-            )
-    return detections
+    road_mask = np.zeros_like(mask)
+    road_mask[roi_y1:roi_y2, roi_x1:roi_x2] = 255
+    mask = cv2.bitwise_and(mask, road_mask)
 
-
-def _detections_from_csv(rows: Iterable[dict], stage_name: str) -> Dict[int, List[Detection]]:
-    detections: Dict[int, List[Detection]] = defaultdict(list)
-    for row in rows:
-        frame_index = int(row.get("frame_index") or row.get("frame") or row.get("frame_id") or 0)
-        bbox = _extract_bbox(row)
-        if bbox is None:
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    boxes: List[BBox] = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if w < args.min_width or h < args.min_height:
             continue
-        detections[frame_index].append(
-            Detection(
-                frame_index=frame_index,
-                bbox=bbox,
-                track_id=_optional_str(row.get("track_id") or row.get("id")),
-                source_stage=stage_name,
-                score=_optional_float(row.get("score") or row.get("confidence")),
-                label=_optional_str(row.get("label") or row.get("class")),
-            )
-        )
-    return detections
+        if w > args.max_width or h > args.max_height:
+            continue
+        if h > height * args.max_height_ratio:
+            continue
+        if w > width * 0.45:
+            continue
+        # 標註文字常貼在框頂端；框特別高時裁掉上緣。
+        if h > w * 0.85:
+            y = y + int(h * 0.22)
+            h = int(h * 0.78)
+        boxes.append((x, y, x + w, y + h))
+    return suppress_nested_boxes(boxes)
 
 
-def _extract_bbox(item: dict) -> Optional[BBox]:
-    if "bbox" in item and isinstance(item["bbox"], (list, tuple)) and len(item["bbox"]) >= 4:
-        x1, y1, a, b = [float(v) for v in item["bbox"][:4]]
-        fmt = str(item.get("bbox_format", "xyxy")).lower()
-        if fmt in ("xywh", "ltwh"):
-            return _normalize_bbox(x1, y1, x1 + a, y1 + b)
-        return _normalize_bbox(x1, y1, a, b)
-
-    keys_xyxy = ("x1", "y1", "x2", "y2")
-    if all(k in item and item[k] not in (None, "") for k in keys_xyxy):
-        return _normalize_bbox(*(float(item[k]) for k in keys_xyxy))
-
-    keys_xywh = ("x", "y", "w", "h")
-    if all(k in item and item[k] not in (None, "") for k in keys_xywh):
-        x, y, w, h = (float(item[k]) for k in keys_xywh)
-        return _normalize_bbox(x, y, x + w, y + h)
-
-    return None
+def suppress_nested_boxes(boxes: List[BBox]) -> List[BBox]:
+    kept: List[BBox] = []
+    for box in sorted(boxes, key=area, reverse=True):
+        if all(iou(box, other) < 0.65 for other in kept):
+            kept.append(box)
+    return sorted(kept, key=lambda b: (b[0], b[1]))
 
 
-def _normalize_bbox(x1: float, y1: float, x2: float, y2: float) -> BBox:
-    left, right = sorted((int(round(x1)), int(round(x2))))
-    top, bottom = sorted((int(round(y1)), int(round(y2))))
-    return left, top, right, bottom
+def area(box: BBox) -> int:
+    x1, y1, x2, y2 = box
+    return max(0, x2 - x1) * max(0, y2 - y1)
 
 
-def _optional_str(value: object) -> Optional[str]:
-    if value is None or value == "":
-        return None
-    return str(value)
+def iou(a: BBox, b: BBox) -> float:
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    inter = area((ix1, iy1, ix2, iy2))
+    union = area(a) + area(b) - inter
+    return inter / union if union else 0.0
 
 
-def _optional_float(value: object) -> Optional[float]:
-    if value is None or value == "":
-        return None
-    return float(value)
-
-
-def merge_detection_maps(*maps: Dict[int, List[Detection]]) -> Dict[int, List[Detection]]:
-    merged: Dict[int, List[Detection]] = defaultdict(list)
-    for det_map in maps:
-        for frame_index, detections in det_map.items():
-            merged[frame_index].extend(detections)
-    return merged
-
+# ---------------------------------------------------------------------------
+# 光流追蹤與繪製
+# ---------------------------------------------------------------------------
 
 def clip_bbox(bbox: BBox, width: int, height: int) -> Optional[BBox]:
     x1, y1, x2, y2 = bbox
@@ -208,55 +177,30 @@ def clip_bbox(bbox: BBox, width: int, height: int) -> Optional[BBox]:
     return x1, y1, x2, y2
 
 
-def mean_flow_for_bbox(
-    prev_gray: np.ndarray,
-    gray: np.ndarray,
-    bbox: BBox,
-    max_corners: int,
-    corner_quality: float,
-    corner_min_distance: int,
-) -> Tuple[float, float, float]:
+def mean_flow_for_bbox(flow: np.ndarray, bbox: BBox, flow_scale: float) -> Tuple[float, float, float]:
     x1, y1, x2, y2 = bbox
-    roi_prev = prev_gray[y1:y2, x1:x2]
-    if roi_prev.size == 0:
+    if flow_scale != 1.0:
+        x1 = int(round(x1 * flow_scale))
+        y1 = int(round(y1 * flow_scale))
+        x2 = int(round(x2 * flow_scale))
+        y2 = int(round(y2 * flow_scale))
+        x1 = max(0, min(flow.shape[1] - 1, x1))
+        x2 = max(0, min(flow.shape[1], x2))
+        y1 = max(0, min(flow.shape[0] - 1, y1))
+        y2 = max(0, min(flow.shape[0], y2))
+    local_flow = flow[y1:y2, x1:x2]
+    if local_flow.size == 0:
         return 0.0, 0.0, 0.0
 
-    # 只在框內找特徵點（角點）
-    corners = cv2.goodFeaturesToTrack(
-        roi_prev,
-        maxCorners=max_corners,
-        qualityLevel=corner_quality,
-        minDistance=corner_min_distance,
-    )
-    if corners is None or len(corners) == 0:
+    mag = np.linalg.norm(local_flow, axis=2)
+    threshold = max(0.05, float(np.percentile(mag, 60)))
+    mask = mag >= threshold
+    if not np.any(mask):
         return 0.0, 0.0, 0.0
 
-    # 角點座標是框內的局部座標，要轉回整張畫面座標
-    corners[:, 0, 0] += x1
-    corners[:, 0, 1] += y1
-
-    # 用 LK 光流追蹤這些點到下一幀的位置
-    next_pts, status, _err = cv2.calcOpticalFlowPyrLK(
-        prev_gray,
-        gray,
-        corners,
-        None,
-        winSize=(15, 15),
-        maxLevel=2,
-        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03),
-    )
-
-    status = status.reshape(-1)
-    good_prev = corners[status == 1].reshape(-1, 2)
-    good_next = next_pts[status == 1].reshape(-1, 2)
-    if len(good_prev) == 0:
-        return 0.0, 0.0, 0.0
-
-    displacement = good_next - good_prev
-    mag = np.linalg.norm(displacement, axis=1)
-    dx = float(np.mean(displacement[:, 0]))
-    dy = float(np.mean(displacement[:, 1]))
-    strength = float(np.mean(mag))
+    dx = float(np.mean(local_flow[..., 0][mask])) / flow_scale
+    dy = float(np.mean(local_flow[..., 1][mask])) / flow_scale
+    strength = float(np.mean(mag[mask])) / flow_scale
     return dx, dy, strength
 
 
@@ -330,7 +274,7 @@ class TrackStore:
         self.used_ids_in_frame.add(track_id)
 
 
-def draw_track(frame: np.ndarray, points: deque[Point], color: Tuple[int, int, int]) -> None:
+def draw_track(frame: np.ndarray, points: "deque[Point]", color: Tuple[int, int, int]) -> None:
     if len(points) < 2:
         return
     for idx in range(1, len(points)):
@@ -384,6 +328,10 @@ def draw_legend(frame: np.ndarray) -> None:
         y += 22
 
 
+# ---------------------------------------------------------------------------
+# 進度顯示
+# ---------------------------------------------------------------------------
+
 def format_eta(seconds: float) -> str:
     seconds = max(0, int(seconds))
     minutes, secs = divmod(seconds, 60)
@@ -395,7 +343,6 @@ def format_eta(seconds: float) -> str:
 
 def print_progress(frame_index: int, total_frames: int, start_time: float) -> None:
     elapsed = time.time() - start_time
-
     if total_frames > 0:
         percent = min(100.0, frame_index / total_frames * 100)
         message = (
@@ -403,19 +350,23 @@ def print_progress(frame_index: int, total_frames: int, start_time: float) -> No
             f"({percent:5.1f}%)  已耗時 {format_eta(elapsed)}"
         )
     else:
-        # 無法取得總幀數時(例如某些串流),只顯示計數與耗時
         message = f"\r已處理 {frame_index} 幀  已耗時 {format_eta(elapsed)}"
-
     sys.stdout.write(message)
     sys.stdout.flush()
 
+
+def to_frame_list(records: Dict[int, List[dict]]) -> List[dict]:
+    return [{"frame_index": idx, "boxes": boxes} for idx, boxes in sorted(records.items())]
+
+
+# ---------------------------------------------------------------------------
+# 主流程：單一迴圈同時完成 stage4 偵測 + 光流追蹤繪製
+# ---------------------------------------------------------------------------
+
 def run() -> None:
     args = parse_args()
-    use_stages = {stage.strip().lower() for stage in args.use_stages.split(",") if stage.strip()}
-
-    stage3 = load_detections(args.stage3, "stage3") if "stage3" in use_stages else defaultdict(list)
-    stage4 = load_detections(args.stage4, "stage4") if "stage4" in use_stages else defaultdict(list)
-    detections_by_frame = merge_detection_maps(stage3, stage4)
+    if not 0.1 <= args.flow_scale <= 1.0:
+        raise ValueError("--flow-scale must be between 0.1 and 1.0")
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -439,8 +390,17 @@ def run() -> None:
     if not ok:
         raise RuntimeError("Input video has no frames.")
 
-    prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+    prev_gray_full = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+    prev_gray = (
+        cv2.resize(prev_gray_full, None, fx=args.flow_scale, fy=args.flow_scale, interpolation=cv2.INTER_AREA)
+        if args.flow_scale != 1.0
+        else prev_gray_full
+    )
+
     tracks = TrackStore(args.history, args.match_distance)
+    stage4_records: Dict[int, List[dict]] = defaultdict(list) if args.boxes_output else None
+    box_count_total = 0
+
     frame_index = 0
     start_time = time.time()
 
@@ -449,22 +409,43 @@ def run() -> None:
         if not ok:
             break
         frame_index += 1
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+        gray_full = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = (
+            cv2.resize(gray_full, None, fx=args.flow_scale, fy=args.flow_scale, interpolation=cv2.INTER_AREA)
+            if args.flow_scale != 1.0
+            else gray_full
+        )
+
+        flow = cv2.calcOpticalFlowFarneback(
+            prev_gray, gray, None,
+            pyr_scale=0.5, levels=3, winsize=21, iterations=3, poly_n=5, poly_sigma=1.2, flags=0,
+        )
+
+        # --- Stage4 橘色框偵測 ---
+        detections: List[Detection] = []
+        if frame_index % args.sample_step == 0:
+            mask = orange_mask(frame)
+            for box in find_boxes(mask, frame.shape, args):
+                detections.append(Detection(frame_index=frame_index, bbox=box))
+                box_count_total += 1
+            if stage4_records is not None and detections:
+                stage4_records[frame_index].extend(
+                    {"bbox": list(d.bbox), "bbox_format": "xyxy", "label": "vehicle"} for d in detections
+                )
+
+        # --- 光流追蹤與繪製 ---
         canvas = frame.copy()
         cv2.line(canvas, (width // 2, 0), (width // 2, height), (80, 80, 80), 1, cv2.LINE_AA)
         tracks.begin_frame()
 
-        for detection in detections_by_frame.get(frame_index, []):
+        for detection in detections:
             clipped = clip_bbox(detection.bbox, width, height)
             if clipped is None:
                 continue
             detection.bbox = clipped
 
-            dx, dy, _strength = mean_flow_for_bbox(
-                prev_gray, gray, clipped,
-                args.max_corners, args.corner_quality, args.corner_min_distance,
-            )
+            dx, dy, _strength = mean_flow_for_bbox(flow, clipped, args.flow_scale)
             track_id = tracks.resolve_id(detection)
             tracks.update(track_id, detection.center)
             label, color = classify_direction(detection.center, width, dx, dy, args.min_flow, args)
@@ -476,7 +457,7 @@ def run() -> None:
         writer.write(canvas)
 
         if args.preview:
-            cv2.imshow("dense optical flow tracks", canvas)
+            cv2.imshow("stage4 flow tracks", canvas)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
@@ -494,7 +475,15 @@ def run() -> None:
     if args.preview:
         cv2.destroyAllWindows()
 
-    print(f"Saved: {output_path}")
+    if stage4_records is not None:
+        boxes_path = Path(args.boxes_output)
+        boxes_path.parent.mkdir(parents=True, exist_ok=True)
+        boxes_path.write_text(json.dumps(to_frame_list(stage4_records), indent=2), encoding="utf-8")
+        print(f"saved_boxes={boxes_path}")
+
+    print(f"frames={frame_index}")
+    print(f"stage4_boxes_total={box_count_total}")
+    print(f"saved_video={output_path}")
 
 
 if __name__ == "__main__":
