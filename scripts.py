@@ -5,307 +5,212 @@ import sys
 import time
 from pathlib import Path
 
-# 專案根目錄（這支腳本所在的位置）
 ROOT = Path(__file__).resolve().parent
+SOURCE_VIDEO = ROOT / "123.mp4"
 
-# Stage1 五種模式
 MODES = {
-    "1": {
-        "name": "GSOC",
-        "workdir": ROOT / "Stage1" / "GSOC",
-        "script": "GSOC.py",
-        "output": ROOT / "Stage1" / "GSOC" / "GSOC.mp4",
-    },
-    "2": {
-        "name": "KNN",
-        "workdir": ROOT / "Stage1" / "KNN",
-        "script": "KNN.py",
-        "output": ROOT / "Stage1" / "KNN" / "KNN.mp4",
-    },
-    "3": {
-        "name": "MOG2",
-        "workdir": ROOT / "Stage1" / "MOG2",
-        "script": "MOG2.py",
-        "output": ROOT / "Stage1" / "MOG2" / "MOG2.mp4",
-    },
-    "4": {
-        "name": "OPTICAL_FLOW",
-        "workdir": ROOT / "Stage1" / "OPTICAL_FLOW",
-        "script": "OPTICAL_FLOW.py",
-        "output": ROOT / "Stage1" / "OPTICAL_FLOW" / "OPTICAL_FLOW.mp4",
-    },
-    "5": {
-        "name": "YOLO",
-        "workdir": ROOT / "Stage1" / "YOLO",
-        "script": "YOLO.py",
-        "output": ROOT / "Stage1" / "YOLO" / "YOLO.mp4",
-    },
+    "0": {"name": "SKIP", "workdir": None, "script": None},
+    "1": {"name": "GSOC", "workdir": ROOT / "Stage1" / "GSOC", "script": "GSOC.py"},
+    "2": {"name": "KNN", "workdir": ROOT / "Stage1" / "KNN", "script": "KNN.py"},
+    "3": {"name": "MOG2", "workdir": ROOT / "Stage1" / "MOG2", "script": "MOG2.py"},
+    "4": {"name": "OPTICAL_FLOW", "workdir": ROOT / "Stage1" / "OPTICAL_FLOW", "script": "OPTICAL_FLOW.py"},
+    "5": {"name": "YOLO", "workdir": ROOT / "Stage1" / "YOLO", "script": "YOLO.py"},
 }
 
 MODES1 = {
-    "1": {
-        "name": "DENSE_OPTICAL_FLOW",
-        "workdir": ROOT / "Stage5" / "code",
-        "script": "dense_optical_flow.py",
-        "output": ROOT / "Stage5" / "code" / "DENSE_OPTICAL_FLOW.mp4",
-    },
-    "2": {
-        "name": "SPARSE_OPTICAL_FLOW",
-        "workdir": ROOT / "Stage5" / "code",
-        "script": "sparse_optical_flow.py",
-        "output": ROOT / "Stage5" / "code" / "SPARSE_OPTICAL_FLOW.mp4",
-    },
+    "0": {"name": "SKIP", "workdir": None, "script": None},
+    "1": {"name": "DENSE_OPTICAL_FLOW", "workdir": ROOT / "Stage5" / "code", "script": "dense_optical_flow.py"},
+    "2": {"name": "SPARSE_OPTICAL_FLOW", "workdir": ROOT / "Stage5" / "code", "script": "sparse_optical_flow.py"},
 }
 
+STAGE4_DIR = ROOT / "Stage4" / "code"
+STAGE4_SCRIPT = "vehicle_yolo_tracker.py"
+STAGE4_OUTPUT_NAME = "YOLO_result.mp4"
+
+RESULTS_DIR = ROOT / "results"
 MERGE_SCRIPT = ROOT / "merge_video.py"
 MERGE_OUTPUT = ROOT / "output.mp4"
 
-def parse_selection(raw: str, valid_keys: dict) -> list:
-    """
-    解析像 "1+2"、"1,3"、"1 2" 這樣的輸入，
-    回傳去重後、依輸入順序排列的合法 key 清單。
-    """
-    # 把常見分隔符號都轉成空白，再依空白切割
+
+def parse_order(raw: str, active_stages: list):
+    normalized = raw.replace("-", " ").replace(",", " ").strip()
+    tokens = [t.strip() for t in normalized.split() if t.strip() in ("1", "4", "5")]
+    seen = set()
+    order = []
+    for t in tokens:
+        if t not in seen:
+            seen.add(t)
+            order.append(t)
+    if sorted(order) == sorted(active_stages):
+        return order
+    return None
+
+
+def select_stages_and_order():
+    print("=" * 80)
+    print("=== Pipeline 自訂模式 ===")
+    print("請決定各 Stage 是否執行（0=跳過，1=執行）")
+    print("=" * 80)
+    
+    while True:
+        s1 = input("Stage1 去背 (0/1)：").strip()
+        s4 = input("Stage4 追蹤 (0/1)：").strip()
+        s5 = input("Stage5 光流 (0/1)：").strip()
+        if s1 in ('0','1') and s4 in ('0','1') and s5 in ('0','1'):
+            break
+        print("請只輸入 0 或 1")
+
+    do_bg = s1 == "1"
+    do_track = s4 == "1"
+    do_flow = s5 == "1"
+
+    active = []
+    if do_bg: active.append("1")
+    if do_track: active.append("4")
+    if do_flow: active.append("5")
+
+    if len(active) <= 1:
+        return do_bg, do_track, do_flow, active
+
+    print(f"\n目前要執行的 Stage： {' → '.join(active)}")
+    print("請輸入執行順序（例如：4 1 5、4-5-1、1,4,5）")
+    
+    while True:
+        raw = input("請輸入順序：").strip()
+        order = parse_order(raw, active)
+        if order:
+            print(f"✓ 順序已設定：{' → '.join(order)}")
+            return do_bg, do_track, do_flow, order
+        print(f"輸入錯誤！請使用這些 Stage，例如：{' '.join(active)}")
+
+
+def select_modes(do_bg):
+    if not do_bg:
+        return [MODES["0"]]
+    
+    print("=" * 60)
+    print("請選擇 Stage1 去背模式（可複選，例如 1+2）")
+    for k, v in MODES.items():
+        if k != "0":
+            print(f"{k}. {v['name']}")
+    print("=" * 60)
+
+    while True:
+        raw = input("請輸入 (1~5，可用 + 或 , 分隔)：").strip()
+        selected = parse_selection(raw, {k:v for k,v in MODES.items() if k!="0"})
+        if selected:
+            return [MODES[k] for k in selected]
+        print("輸入錯誤，請確認 1~5")
+
+
+def select_modes1(do_flow):
+    if not do_flow:
+        return [MODES1["0"]]
+    
+    print("=" * 60)
+    print("請選擇 Stage5 光流模式（可複選，例如 1+2）")
+    for k, v in MODES1.items():
+        if k != "0":
+            print(f"{k}. {v['name']}")
+    print("=" * 60)
+
+    while True:
+        raw = input("請輸入 (1~2，可用 + 或 , 分隔)：").strip()
+        selected = parse_selection(raw, {k:v for k,v in MODES1.items() if k!="0"})
+        if selected:
+            return [MODES1[k] for k in selected]
+        print("輸入錯誤，請確認 1~2")
+
+
+def parse_selection(raw: str, valid):
     normalized = raw.replace("+", " ").replace(",", " ")
     tokens = normalized.split()
-
     selected = []
-    for token in tokens:
-        if token not in valid_keys:
-            return None  # 有不合法的選項，讓外層重新輸入
-        if token not in selected:
-            selected.append(token)
-
+    for t in tokens:
+        if t in valid and t not in selected:
+            selected.append(t)
     return selected if selected else None
 
 
-def select_modes():
-    print("=" * 60)
-    print("請選擇 Stage1 前處理模式（可複選，例如 1+2 或 1,3,5）")
-    print("1. GSOC")
-    print("2. KNN")
-    print("3. MOG2")
-    print("4. OPTICAL_FLOW")
-    print("5. YOLO")
-    print("=" * 60)
+def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir=None):
+    if step_type in ("1", "bg"):
+        if mode["name"] == "SKIP": return None
+        out_dir = output_dir or mode["workdir"]
+        output = out_dir / f"{mode['name']}.mp4"
+        cmd = ["python", mode["script"], "--source", str(source), "--output", str(output)]
+        return f"Stage1 - {mode['name']}", mode["workdir"], cmd, output
 
-    while True:
-        raw = input("請輸入 (1~5，可用 + 或 , 分隔多個)：").strip()
-        selected = parse_selection(raw, MODES)
-        if selected:
-            return [MODES[k] for k in selected]
+    if step_type in ("4", "track"):
+        out_dir = output_dir or STAGE4_DIR
+        output = out_dir / STAGE4_OUTPUT_NAME
+        cmd = ["python", STAGE4_SCRIPT, "--source", str(source), "--output", str(output)]
+        return "Stage4 - YOLO 追蹤", STAGE4_DIR, cmd, output
 
-        print("輸入格式錯誤，請確認選項介於 1~5 之間，例如：1+2")
-
-
-def select_modes1():
-    print("=" * 60)
-    print("請選擇 Stage5 前處理模式（可複選，例如 1+2）")
-    print("1. DENSE_OPTICAL_FLOW")
-    print("2. SPARSE_OPTICAL_FLOW")
-    print("=" * 60)
-
-    while True:
-        raw = input("請輸入 (1~2，可用 + 或 , 分隔多個)：").strip()
-        selected = parse_selection(raw, MODES1)
-        if selected:
-            return [MODES1[k] for k in selected]
-
-        print("輸入格式錯誤，請確認選項介於 1~2 之間，例如：1+2")
+    if step_type in ("5", "flow"):
+        if mode5["name"] == "SKIP": return None
+        out_dir = output_dir or mode5["workdir"]
+        output = out_dir / f"{mode5['name']}.mp4"
+        cmd = ["python", mode5["script"], "--video", str(source), "--output", str(output)]
+        return f"Stage5 - {mode5['name']}", mode5["workdir"], cmd, output
 
 
-def format_duration(seconds: float) -> str:
-    """用於畫面顯示的時分秒格式"""
-    seconds = int(seconds)
-    hours, remainder = divmod(seconds, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours} 時 {minutes} 分 {secs} 秒"
-    if minutes:
-        return f"{minutes} 分 {secs} 秒"
-    return f"{secs} 秒"
-
-
-def format_duration_for_filename(seconds: float) -> str:
-    """用於檔名的 分.秒 格式，例如 218 秒 -> '3.38'"""
-    total_seconds = int(seconds)
-    minutes, secs = divmod(total_seconds, 60)
-    return f"{minutes}.{secs:02d}"
-
-
-def run_one_combo(mode: dict, mode5: dict) -> tuple:
-    """
-    執行單一 (Stage1 模式, Stage5 模式) 組合的完整 pipeline。
-    回傳 (是否成功, 最終輸出路徑或錯誤訊息, 耗時秒數)。
-    """
+def run_one_combo(mode, mode5, order):
     combo_start = time.time()
-    stage4_output = ROOT / "Stage4" / "code" / "YOLO_result.mp4"
+    current = SOURCE_VIDEO
+    final = None
 
-    steps = [
-        (
-            f"Stage1 - {mode['name']}",
-            mode["workdir"],
-            ["python", mode["script"]],
-            mode["output"],
-        ),
-        (
-            "Stage4 - YOLO 車輛追蹤",
-            ROOT / "Stage4" / "code",
-            [
-                "python",
-                "vehicle_yolo_tracker.py",
-                "--source",
-                str(mode["output"]),
-                "--output",
-                "YOLO_result.mp4",
-            ],
-            stage4_output,
-        ),
-        (
-            f"Stage5 - {mode5['name']}",
-            mode5["workdir"],
-            [
-                "python",
-                mode5["script"],
-                "--video",
-                str(stage4_output),
-                "--output",
-                str(mode5["output"]),
-            ],
-            mode5["output"],
-        ),
-    ]
+    for step in order:
+        step_info = build_step(step, mode, mode5, current, 
+                               RESULTS_DIR if step == order[-1] else None)
+        if step_info is None:
+            continue
+            
+        name, workdir, cmd, out_path = step_info
+        print(f"\n{'='*50}\n執行 → {name}\n{'='*50}")
+        
+        result = subprocess.run(cmd, cwd=str(workdir))
+        if result.returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
+            return False, f"{name} 執行失敗", time.time() - combo_start
 
-    for name, workdir, command, expected_output in steps:
-        print(f"\n{'=' * 60}")
-        print(f" 組合：{mode['name']} + {mode5['name']}")
-        print(f" 執行：{name}")
-        print(f" 目錄：{workdir}")
-        print(f" 指令：{' '.join(command)}")
-        print(f"{'=' * 60}")
+        print(f"完成 → {out_path.name}")
+        current = out_path
+        final = out_path
 
-        if not workdir.exists():
-            return False, f"找不到目錄：{workdir}", time.time() - combo_start
+    # 檔名
+    tags = []
+    for s in order:
+        if s == "1": tags.append(mode["name"].lower() if mode["name"] != "SKIP" else "skip")
+        elif s == "4": tags.append("track")
+        elif s == "5": tags.append(mode5["name"].lower().replace("_optical_flow", "") if mode5["name"] != "SKIP" else "skip")
+    
+    duration_tag = f"{int(time.time()-combo_start)//60}.{int(time.time()-combo_start)%60:02d}"
+    final_name = "-".join(tags) + f"-{duration_tag}.mp4"
+    final_path = final.parent / final_name
+    final.rename(final_path)
 
-        result = subprocess.run(command, cwd=str(workdir))
+    return True, final_path, time.time() - combo_start
 
-        if result.returncode != 0:
-            return False, f"「{name}」執行失敗（結束代碼 {result.returncode}）", time.time() - combo_start
-
-        if not expected_output.exists():
-            return False, f"「{name}」找不到預期輸出檔案：{expected_output}", time.time() - combo_start
-
-        if expected_output.stat().st_size == 0:
-            return False, f"「{name}」輸出檔案大小為 0：{expected_output}", time.time() - combo_start
-
-        print(f"「{name}」完成，輸出檔案：{expected_output}（{expected_output.stat().st_size / 1024:.1f} KB）")
-
-    combo_elapsed = time.time() - combo_start
-
-    # ---- 重新命名為「stage1模式-stage5模式-耗時.mp4」 ----
-    stage1_short = mode["name"].lower()
-    stage5_short = mode5["name"].lower().replace("_optical_flow", "")
-    duration_tag = format_duration_for_filename(combo_elapsed)
-
-    final_name = f"{stage1_short}-{stage5_short}-{duration_tag}.mp4"
-    final_path = mode5["output"].parent / final_name
-
-    mode5["output"].rename(final_path)
-
-    return True, final_path, combo_elapsed
-
-def run_merge_step() -> tuple:
-    """
-    在所有組合執行完畢後，呼叫 merge_video.py 把 Stage5/code
-    資料夾內的影片合併成一支 3x3 預覽影片。
-    回傳 (是否成功, 輸出路徑或錯誤訊息, 耗時秒數)。
-    """
-    print(f"\n{'=' * 60}")
-    print(" 執行：merge_video.py（合併所有結果影片）")
-    print(f" 目錄：{ROOT}")
-    print(f"{'=' * 60}")
-
-    start = time.time()
-
-    if not MERGE_SCRIPT.exists():
-        return False, f"找不到合併腳本：{MERGE_SCRIPT}", time.time() - start
-
-    result = subprocess.run(["python", MERGE_SCRIPT.name], cwd=str(ROOT))
-
-    elapsed = time.time() - start
-
-    if result.returncode != 0:
-        return False, f"merge_video.py 執行失敗（結束代碼 {result.returncode}）", elapsed
-
-    if not MERGE_OUTPUT.exists():
-        return False, f"找不到預期輸出檔案：{MERGE_OUTPUT}", elapsed
-
-    if MERGE_OUTPUT.stat().st_size == 0:
-        return False, f"輸出檔案大小為 0：{MERGE_OUTPUT}", elapsed
-
-    print(f"合併完成，輸出檔案：{MERGE_OUTPUT}（{MERGE_OUTPUT.stat().st_size / 1024:.1f} KB）")
-    return True, MERGE_OUTPUT, elapsed
 
 def main():
-    pipeline_start = time.time()
-    modes = select_modes()
-    modes5 = select_modes1()
+    if not SOURCE_VIDEO.exists():
+        print("找不到來源影片 123.mp4")
+        sys.exit(1)
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    do_bg, do_track, do_flow, order = select_stages_and_order()
+    modes = select_modes(do_bg)
+    modes5 = select_modes1(do_flow)
 
     combos = list(itertools.product(modes, modes5))
+    print(f"\n共 {len(combos)} 組合，執行順序：{' → '.join(order)}\n")
 
-    print(f"\n共選擇 {len(modes)} 個 Stage1 模式 x {len(modes5)} 個 Stage5 模式 "
-          f"= {len(combos)} 組合，將依序執行。\n")
-    for i, (m1, m5) in enumerate(combos, start=1):
-        print(f"  {i}. {m1['name']} + {m5['name']}")
+    for i, (m, m5) in enumerate(combos, 1):
+        print(f"開始第 {i}/{len(combos)} 組合...")
+        success, info, elapsed = run_one_combo(m, m5, order)
+        print(f"組合完成！耗時 {elapsed:.1f} 秒 → {info if success else '失敗'}")
 
-    results = []  # (mode1_name, mode5_name, success, info, elapsed)
-
-    for i, (mode, mode5) in enumerate(combos, start=1):
-        print(f"\n{'#' * 60}")
-        print(f"# 開始第 {i}/{len(combos)} 組合：{mode['name']} + {mode5['name']}")
-        print(f"{'#' * 60}")
-
-        success, info, elapsed = run_one_combo(mode, mode5)
-        results.append((mode["name"], mode5["name"], success, info, elapsed))
-
-        if success:
-            print(f"\n組合完成：{mode['name']} + {mode5['name']}，"
-                  f"耗時 {format_duration(elapsed)}，輸出：{info}")
-        else:
-            print(f"\n組合失敗：{mode['name']} + {mode5['name']}，原因：{info}")
-            print("將繼續執行下一個組合...")
-
-    pipeline_elapsed = time.time() - pipeline_start
-
-    # ---- 總結報告 ----
-    print(f"\n{'=' * 60}")
-    print("所有組合執行完畢，總結如下：")
-    print(f"{'=' * 60}")
-
-    success_count = 0
-    for m1_name, m5_name, success, info, elapsed in results:
-        status = "成功" if success else "失敗"
-        if success:
-            success_count += 1
-        print(f"[{status}] {m1_name} + {m5_name}（耗時 {format_duration(elapsed)}） -> {info}")
-
-    print(f"\n總計：{success_count}/{len(results)} 組合成功")
-    print(f"整體總花費時間：{format_duration(pipeline_elapsed)}")
-    print(f"{'=' * 60}")
-
-    # ---- 新增：合併所有結果影片 ----
-    merge_success = True
-    if success_count > 0:
-        merge_success, merge_info, merge_elapsed = run_merge_step()
-        if merge_success:
-            print(f"\n影片合併完成，輸出：{merge_info}")
-        else:
-            print(f"\n影片合併失敗，原因：{merge_info}")
-    else:
-        print("\n沒有任何組合成功，略過影片合併步驟。")
-
-    if success_count < len(results) or not merge_success:
-        sys.exit(1)
+    print("\n全部執行完畢！")
 
 
 if __name__ == "__main__":

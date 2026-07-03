@@ -3,7 +3,7 @@ import numpy as np
 import glob
 import os
 
-folder_path = 'Stage5/code'
+folder_path = 'results'
 
 video_extensions = ['*.mp4', '*.avi', '*.mov', '*.mkv', '*.flv', '*.wmv']
 video_paths = []

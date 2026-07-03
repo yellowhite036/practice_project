@@ -1,11 +1,26 @@
+import argparse
+import sys
+from pathlib import Path
+
 import cv2
 import numpy as np
 import time
 from ultralytics import YOLO
 
-INPUT_VIDEO = "../../123.mp4"
-OUTPUT_COMBINED = "YOLO_combined.mp4"
-OUTPUT_FOREGROUND = "YOLO.mp4"
+DEFAULT_SOURCE = "../../123.mp4"
+DEFAULT_OUTPUT = "YOLO.mp4"
+
+parser = argparse.ArgumentParser(description="YOLOv8-seg 車輛去背")
+parser.add_argument("--source", default=DEFAULT_SOURCE, help="輸入影片路徑")
+parser.add_argument("--output", default=DEFAULT_OUTPUT, help="去背結果輸出路徑")
+args = parser.parse_args()
+
+INPUT_VIDEO = args.source
+OUTPUT_FOREGROUND = args.output
+
+# 對照版（左右拼接）跟去背版放同一個資料夾，檔名自動加上 _combined
+_output_path = Path(OUTPUT_FOREGROUND)
+OUTPUT_COMBINED = str(_output_path.with_name(_output_path.stem + "_combined" + _output_path.suffix))
 
 model = YOLO("yolov8n-seg.pt")
 
@@ -15,8 +30,8 @@ W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 if not cap.isOpened():
-    print("❌ 無法開啟影片")
-    exit()
+    print(f"❌ 無法開啟影片：{INPUT_VIDEO}")
+    sys.exit(1)
 
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 out_combined = cv2.VideoWriter(OUTPUT_COMBINED, fourcc, fps, (W * 2, H))
