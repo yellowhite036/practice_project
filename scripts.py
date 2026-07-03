@@ -8,6 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SOURCE_VIDEO = ROOT / "123.mp4"
 
+# ==================== 直播擷取設定 ====================
+LIVE_SCRIPT = ROOT / "live.py"
+LIVE_STREAM_URL = "https://www.youtube.com/watch?v=Nz9-_x5ecWc"
+DURATION_SECONDS = 60
+# ====================================================
+
 MODES = {
     "0": {"name": "SKIP", "workdir": None, "script": None},
     "1": {"name": "GSOC", "workdir": ROOT / "Stage1" / "GSOC", "script": "GSOC.py"},
@@ -30,6 +36,31 @@ STAGE4_OUTPUT_NAME = "YOLO_result.mp4"
 RESULTS_DIR = ROOT / "results"
 MERGE_SCRIPT = ROOT / "merge_video.py"
 MERGE_OUTPUT = ROOT / "output.mp4"
+
+
+def run_live_capture():
+    """執行 live.py 擷取直播"""
+    print(f"\n{'=' * 60}")
+    print("開始執行 live.py 擷取直播畫面...")
+    print(f"來源：{LIVE_STREAM_URL}  ({DURATION_SECONDS} 秒)")
+    print(f"{'=' * 60}")
+
+    if not LIVE_SCRIPT.exists():
+        print(f"❌ 找不到 live.py：{LIVE_SCRIPT}")
+        return False
+
+    result = subprocess.run([sys.executable, str(LIVE_SCRIPT)], cwd=str(ROOT))
+    
+    if result.returncode != 0:
+        print("❌ live.py 執行失敗")
+        return False
+
+    if not SOURCE_VIDEO.exists() or SOURCE_VIDEO.stat().st_size == 0:
+        print("❌ 擷取失敗，123.mp4 不存在或大小為 0")
+        return False
+
+    print(f"✅ 直播擷取完成 → {SOURCE_VIDEO} ({SOURCE_VIDEO.stat().st_size / 1024:.1f} KB)")
+    return True
 
 
 def parse_order(raw: str, active_stages: list):
@@ -192,23 +223,38 @@ def run_one_combo(mode, mode5, order):
 
 
 def main():
-    if not SOURCE_VIDEO.exists():
-        print("找不到來源影片 123.mp4")
-        sys.exit(1)
-
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Step 1: 先選擇是否擷取
+    print(f"\n{'=' * 60}")
+    print("是否要執行 live.py 擷取直播畫面？")
+    do_live = input("輸入 y 擷取，其餘則使用現有 123.mp4：").strip().lower() == 'y'
+
+    # Step 2: 進行其他所有設定
     do_bg, do_track, do_flow, order = select_stages_and_order()
     modes = select_modes(do_bg)
     modes5 = select_modes1(do_flow)
 
+    # Step 3: 所有設定完成後，才開始擷取（如果選擇要的話）
+    if do_live:
+        if not run_live_capture():
+            print("直播擷取失敗，程式終止。")
+            sys.exit(1)
+    else:
+        if not SOURCE_VIDEO.exists():
+            print(f"❌ 找不到 123.mp4 且未選擇擷取，程式無法繼續。")
+            sys.exit(1)
+        print(f"使用現有來源影片：{SOURCE_VIDEO} ({SOURCE_VIDEO.stat().st_size / 1024:.1f} KB)")
+
+    # Step 4: 開始執行 Pipeline
     combos = list(itertools.product(modes, modes5))
     print(f"\n共 {len(combos)} 組合，執行順序：{' → '.join(order)}\n")
 
     for i, (m, m5) in enumerate(combos, 1):
         print(f"開始第 {i}/{len(combos)} 組合...")
         success, info, elapsed = run_one_combo(m, m5, order)
-        print(f"組合完成！耗時 {elapsed:.1f} 秒 → {info if success else '失敗'}")
+        status = "成功" if success else "失敗"
+        print(f"組合 {status}！耗時 {elapsed:.1f} 秒 → {info if success else '失敗'}")
 
     print("\n全部執行完畢！")
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-LIVE_STREAM_URL = "https://www.youtube.com/watch?v=Nz9-_x5ecWc"
+LIVE_STREAM_URL = "https://www.youtube.com/watch?v=yn_8QwCWsyI"
 DURATION_SECONDS = 60
 OUTPUT_PATH = ROOT / "123.mp4"
 
