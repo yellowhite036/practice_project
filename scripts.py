@@ -16,7 +16,7 @@ DURATION_SECONDS = 60
 
 MODES = {
     "0": {"name": "SKIP", "workdir": None, "script": None},
-    "1": {"name": "GSOC", "workdir": ROOT / "Stage1" / "GSOC", "script": "GSOC.py"},
+    "1": {"name": "FrameDiff", "workdir": ROOT / "Stage1" / "FrameDiff", "script": "FrameDiff.py"},
     "2": {"name": "KNN", "workdir": ROOT / "Stage1" / "KNN", "script": "KNN.py"},
     "3": {"name": "MOG2", "workdir": ROOT / "Stage1" / "MOG2", "script": "MOG2.py"},
     "4": {"name": "OPTICAL_FLOW", "workdir": ROOT / "Stage1" / "OPTICAL_FLOW", "script": "OPTICAL_FLOW.py"},
@@ -46,20 +46,20 @@ def run_live_capture():
     print(f"{'=' * 60}")
 
     if not LIVE_SCRIPT.exists():
-        print(f"❌ 找不到 live.py：{LIVE_SCRIPT}")
+        print(f"找不到 live.py：{LIVE_SCRIPT}")
         return False
 
     result = subprocess.run([sys.executable, str(LIVE_SCRIPT)], cwd=str(ROOT))
     
     if result.returncode != 0:
-        print("❌ live.py 執行失敗")
+        print("live.py 執行失敗")
         return False
 
     if not SOURCE_VIDEO.exists() or SOURCE_VIDEO.stat().st_size == 0:
-        print("❌ 擷取失敗，123.mp4 不存在或大小為 0")
+        print("擷取失敗，123.mp4 不存在或大小為 0")
         return False
 
-    print(f"✅ 直播擷取完成 → {SOURCE_VIDEO} ({SOURCE_VIDEO.stat().st_size / 1024:.1f} KB)")
+    print(f"直播擷取完成 → {SOURCE_VIDEO} ({SOURCE_VIDEO.stat().st_size / 1024:.1f} KB)")
     return True
 
 
@@ -242,7 +242,7 @@ def main():
             sys.exit(1)
     else:
         if not SOURCE_VIDEO.exists():
-            print(f"❌ 找不到 123.mp4 且未選擇擷取，程式無法繼續。")
+            print(f"找不到 123.mp4 且未選擇擷取，程式無法繼續。")
             sys.exit(1)
         print(f"使用現有來源影片：{SOURCE_VIDEO} ({SOURCE_VIDEO.stat().st_size / 1024:.1f} KB)")
 

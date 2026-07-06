@@ -27,16 +27,16 @@ try:
         check=True,
     )
 except FileNotFoundError as e:
-    print(f"❌ 找不到 yt-dlp 套件，請先執行：{sys.executable} -m pip install yt-dlp")
+    print(f"找不到 yt-dlp 套件，請先執行：{sys.executable} -m pip install yt-dlp")
     print(f"（詳細錯誤：{e}）")
     sys.exit(1)
 except subprocess.CalledProcessError as e:
-    print(f"❌ yt-dlp 解析直播網址失敗：{e.stderr.strip()}")
+    print(f"yt-dlp 解析直播網址失敗：{e.stderr.strip()}")
     sys.exit(1)
 
 stream_url = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
 if not stream_url:
-    print("❌ yt-dlp 沒有回傳有效的串流網址")
+    print("yt-dlp 沒有回傳有效的串流網址")
     sys.exit(1)
 
 print(f"已取得串流網址，開始錄製...")
@@ -47,7 +47,7 @@ try:
     import imageio_ffmpeg
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 except ImportError:
-    print(f"❌ 找不到 imageio-ffmpeg 套件，請先執行：{sys.executable} -m pip install imageio-ffmpeg")
+    print(f"找不到 imageio-ffmpeg 套件，請先執行：{sys.executable} -m pip install imageio-ffmpeg")
     sys.exit(1)
 
 print(f"使用的 ffmpeg：{ffmpeg_path}")
@@ -68,11 +68,11 @@ ffmpeg_result = subprocess.run(
 )
 
 if ffmpeg_result.returncode != 0:
-    print(f"❌ ffmpeg 擷取失敗（結束代碼 {ffmpeg_result.returncode}）")
+    print(f"ffmpeg 擷取失敗（結束代碼 {ffmpeg_result.returncode}）")
     sys.exit(1)
 
 if not OUTPUT_PATH.exists() or OUTPUT_PATH.stat().st_size == 0:
-    print(f"❌ 擷取後找不到影片或檔案大小為 0：{OUTPUT_PATH}")
+    print(f"擷取後找不到影片或檔案大小為 0：{OUTPUT_PATH}")
     sys.exit(1)
 
-print(f"✅ 擷取完成：{OUTPUT_PATH}（{OUTPUT_PATH.stat().st_size / 1024:.1f} KB）")
+print(f"擷取完成：{OUTPUT_PATH}（{OUTPUT_PATH.stat().st_size / 1024:.1f} KB）")

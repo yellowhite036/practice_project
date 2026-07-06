@@ -34,7 +34,7 @@ W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 if not cap.isOpened():
-    print(f"❌ 無法開啟影片：{INPUT_VIDEO}")
+    print(f"  無法開啟影片：{INPUT_VIDEO}")
     sys.exit(1)
 
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -106,7 +106,7 @@ out_combined.release()
 out_foreground.release()
 
 total_elapsed = time.time() - start_time
-print(f"✅ 完成！")
+print(f"完成！")
 print(f"   • 去背版：{OUTPUT_FOREGROUND}")
 print(f"   • 合併對照版：{OUTPUT_COMBINED}")
 print(f"   總耗時 {total_elapsed:.1f} 秒")
