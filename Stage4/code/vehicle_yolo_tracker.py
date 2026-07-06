@@ -217,6 +217,17 @@ def find_roi(point: np.ndarray, rois: list[RegionOfInterest]) -> str | None:
     return None
 
 
+def build_roi_mask(frame_shape: tuple[int, int], rois: list[RegionOfInterest]) -> np.ndarray | None:
+    """依照所有 ROI 的多邊形聯集，建立一張黑白遮罩（ROI 內為白、其餘為黑）。
+    若沒有任何 ROI，回傳 None，代表不做遮罩，YOLO 直接偵測全畫面。"""
+    if not rois:
+        return None
+    mask = np.zeros(frame_shape[:2], dtype=np.uint8)
+    for roi in rois:
+        cv2.fillPoly(mask, [roi.polygon], 255)
+    return mask
+
+
 def draw_rois(frame: np.ndarray, rois: list[RegionOfInterest], roi_counts: dict[str, int]) -> np.ndarray:
     """在畫面上畫出半透明 ROI 區域與累計進入數量，方便確認車道判斷是否正確。"""
     if not rois:
@@ -236,6 +247,23 @@ def draw_rois(frame: np.ndarray, rois: list[RegionOfInterest], roi_counts: dict[
     return cv2.addWeighted(overlay, ROI_FILL_ALPHA, frame, 1 - ROI_FILL_ALPHA, 0)
 
 
+def cutout_tracked_windows(frame: np.ndarray, tracks: Iterable[Track]) -> np.ndarray:
+    """建立一張全黑畫布，只把每個 track 目前的 bbox 範圍從原始 frame 複製過來，
+    其餘背景維持全黑（矩形窗口去背版）。"""
+    canvas = np.zeros_like(frame)
+    h, w = frame.shape[:2]
+    for track in tracks:
+        x1, y1, x2, y2 = track.bbox.astype(int)
+        x1 = max(0, min(x1, w - 1))
+        x2 = max(0, min(x2, w))
+        y1 = max(0, min(y1, h - 1))
+        y2 = max(0, min(y2, h))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        canvas[y1:y2, x1:x2] = frame[y1:y2, x1:x2]
+    return canvas
+
+
 # ---------- 主程式 ----------
 
 def parse_args() -> argparse.Namespace:
@@ -252,6 +280,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-missed", type=int, default=18, help="Frames to keep an unmatched track alive.")
     parser.add_argument("--roi", default="roi.json", help="roi_editor.py 產生的 ROI 檔案路徑。")
     parser.add_argument("--show", action="store_true", help="Show a live preview window.")
+    parser.add_argument(
+        "--roi-mode",
+        choices=["mask", "filter", "off"],
+        default="filter",
+        help="mask: 偵測前先遮罩ROI外區域（版本一）；"
+             "filter: 全畫面偵測，只顯示/計數ROI內的車輛（版本二）；"
+             "off: 不做ROI限制，全部顯示",
+    )
+    parser.add_argument(
+        "--cutout",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="矩形窗口去背：只保留被追蹤車輛的 bbox 範圍，其餘背景全黑。"
+            "若搭配 --roi-mode filter，ROI 外的車輛也會被塗黑。"
+            "預設為開啟，若要關閉請加上 --no-cutout。",
+    )
     return parser.parse_args()
 
 
@@ -331,6 +375,7 @@ def main() -> None:
             raise RuntimeError(
                 f"未成功建立 ROI 檔案（{roi_path}），已中止程式。請重新執行並在編輯器中按 S 儲存。"
             )
+
     cap = open_capture(args.source)
     model = YOLO(args.model)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -346,6 +391,8 @@ def main() -> None:
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    roi_mask = build_roi_mask((height, width), rois)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -364,7 +411,12 @@ def main() -> None:
         if not ok:
             break
 
-        result = model.predict(frame, conf=args.conf, iou=args.iou, verbose=False)[0]
+        if args.roi_mode == "mask" and roi_mask is not None:
+            detect_input = cv2.bitwise_and(frame, frame, mask=roi_mask)
+        else:
+            detect_input = frame  # filter 或 off 模式都用全畫面偵測
+
+        result = model.predict(detect_input, conf=args.conf, iou=args.iou, verbose=False)[0]
         detections = detections_from_yolo(result, args.conf)
         tracks = tracker.update(detections)
 
@@ -377,8 +429,20 @@ def main() -> None:
                 roi_counts[matched_roi] = roi_counts.get(matched_roi, 0) + 1
             track.current_roi = matched_roi
 
-        annotated = draw_rois(frame, rois, roi_counts)
-        annotated = draw_tracks(annotated, tracks)
+        display_tracks = tracks
+        if args.roi_mode == "filter" and rois:
+            display_tracks = [t for t in tracks if t.current_roi is not None]
+
+        # 決定要疊加畫框/文字的背景畫面：
+        # 若開啟 --cutout，就用矩形窗口去背後的黑畫布（只保留 display_tracks 的 bbox 範圍）；
+        # 否則沿用原始 frame，維持完整背景。
+        if args.cutout:
+            base_frame = cutout_tracked_windows(frame, display_tracks)
+        else:
+            base_frame = frame
+
+        annotated = draw_rois(base_frame, rois, roi_counts)
+        annotated = draw_tracks(annotated, display_tracks)
 
         cv2.putText(
             annotated,
