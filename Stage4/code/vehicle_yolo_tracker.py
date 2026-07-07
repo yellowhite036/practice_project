@@ -272,8 +272,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--source", default="../../123.mp4", help="Input video path, camera index, or stream URL.")
     parser.add_argument("--output", default="YOLO_result.mp4", help="Annotated output video path.")
-    parser.add_argument("--model", default="yolov8n.pt", help="Ultralytics YOLO model path/name.")
-    parser.add_argument("--conf", type=float, default=0.35, help="Detection confidence threshold.")
+    parser.add_argument("--model", default="yolov8s.pt", help="Ultralytics YOLO model path/name.")
+    parser.add_argument("--conf", type=float, default=0.15, help="Detection confidence threshold.")
+    parser.add_argument("--imgsz", type=int, default=1280, help="YOLO 推論解析度，提高可增加遠處小物體偵測率但會變慢。")
     parser.add_argument("--iou", type=float, default=0.45, help="YOLO NMS IoU threshold.")
     parser.add_argument("--track-iou", type=float, default=0.25, help="Minimum IoU for same-ID matching.")
     parser.add_argument("--track-distance", type=float, default=90.0, help="Maximum centroid distance for fallback matching.")
@@ -363,6 +364,9 @@ def draw_tracks(frame: np.ndarray, tracks: Iterable[Track]) -> np.ndarray:
 
 def main() -> None:
     args = parse_args()
+    print(f"[設定] model={args.model} | conf={args.conf} | iou={args.iou} | "
+          f"imgsz={args.imgsz} | roi_mode={args.roi_mode} | cutout={args.cutout}")
+
 
     roi_path = Path(args.roi)
     if not roi_path.exists():
@@ -416,7 +420,7 @@ def main() -> None:
         else:
             detect_input = frame  # filter 或 off 模式都用全畫面偵測
 
-        result = model.predict(detect_input, conf=args.conf, iou=args.iou, verbose=False)[0]
+        result = model.predict(detect_input, conf=args.conf, iou=args.iou, imgsz=args.imgsz, verbose=False)[0]
         detections = detections_from_yolo(result, args.conf)
         tracks = tracker.update(detections)
 
@@ -432,6 +436,13 @@ def main() -> None:
         display_tracks = tracks
         if args.roi_mode == "filter" and rois:
             display_tracks = [t for t in tracks if t.current_roi is not None]
+
+        if frame_index % 30 == 0:
+            missed_now = sum(1 for t in tracks if t.missed > 0)
+            print(f"[Frame {frame_index}] imgsz:{args.imgsz} conf:{args.conf} | "
+                  f"YOLO原始:{len(detections)} | "
+                  f"追蹤中:{len(tracks)} | ROI內:{len(display_tracks)} | "
+                  f"missed狀態:{missed_now}")
 
         # 決定要疊加畫框/文字的背景畫面：
         # 若開啟 --cutout，就用矩形窗口去背後的黑畫布（只保留 display_tracks 的 bbox 範圍）；

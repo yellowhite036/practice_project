@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="第 1 页" id="EDNaJZNnnwqxP0Wy0BaO">
-    <mxGraphModel dx="1288" dy="779" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1471" dy="890" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -91,83 +91,77 @@
         <mxCell id="LqL7joPrmtTk0NlE0pl9-29" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;span style=&quot;text-align: left;&quot;&gt;&lt;font style=&quot;font-size: 40px;&quot;&gt;System Pipeline&lt;/font&gt;&lt;/span&gt;" vertex="1">
           <mxGeometry height="40" width="400" x="490" y="310" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-36" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-12" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-1" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-10" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage1 remove background" vertex="1">
-          <mxGeometry height="40" width="200" x="1100" y="700" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="remove background &lt;br&gt;by&amp;nbsp;yolo tracking frame" vertex="1">
+          <mxGeometry height="40" width="200" x="1140" y="700" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-5" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-21" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-4" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-8" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-38" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-10" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="original video" vertex="1">
+          <mxGeometry height="40" width="200" x="1140" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage2 watershed" vertex="1">
+          <mxGeometry height="40" width="200" x="1530" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-7" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-12" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="original video" vertex="1">
-          <mxGeometry height="40" width="200" x="1100" y="410" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage2 watershed" vertex="1">
-          <mxGeometry height="40" width="200" x="1410" y="600" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-31" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-14" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-30" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-18" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-40" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-21" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage3 ROI&amp;nbsp;" vertex="1">
+          <mxGeometry height="40" width="200" x="1140" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-9" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-20" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage3 ROI and classify" vertex="1">
-          <mxGeometry height="40" width="200" x="1100" y="510" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage5 opitical flow&amp;nbsp;" vertex="1">
+          <mxGeometry height="40" width="200" x="1140" y="790" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-11" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-23" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-11" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-2" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage5 opitical flow&amp;nbsp;" vertex="1">
-          <mxGeometry height="40" width="200" x="1100" y="790" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage4 YOLO" vertex="1">
+          <mxGeometry height="40" width="200" x="1140" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-35" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-3" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-13" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input oringinal video" vertex="1">
+          <mxGeometry height="30" width="180" x="1160" y="465" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-14" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with out background" vertex="1">
+          <mxGeometry height="30" width="180" x="1150" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-15" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with ROI" vertex="1">
+          <mxGeometry height="30" width="180" x="1150" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-16" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with YOLO tracking" vertex="1">
+          <mxGeometry height="30" width="180" x="1150" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="qMy3pctc-F5U606VzNz1-17" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qMy3pctc-F5U606VzNz1-21" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage4 YOLO" vertex="1">
-          <mxGeometry height="40" width="200" x="1100" y="610" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage 6 feature points" vertex="1">
+          <mxGeometry height="40" width="200" x="1520" y="505" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-15" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input oringinal video" vertex="1">
-          <mxGeometry height="30" width="180" x="1120" y="465" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-20" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="video 5" vertex="1">
+          <mxGeometry height="80" width="120" x="1180" y="880" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-16" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with out background" vertex="1">
-          <mxGeometry height="30" width="180" x="1110" y="750" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-21" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="3D cloud points file" vertex="1">
+          <mxGeometry height="80" width="120" x="1560" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-18" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with ROI" vertex="1">
-          <mxGeometry height="30" width="180" x="1110" y="570" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-22" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="output" vertex="1">
+          <mxGeometry height="38.75" width="120" x="1540" y="565" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-19" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with YOLO tracking" vertex="1">
-          <mxGeometry height="30" width="180" x="1110" y="660" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-23" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="output video with optical flow" vertex="1">
+          <mxGeometry height="30" width="180" x="1150" y="840" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-45" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="VIaz_GR1P35Ysxikfubc-25" value="">
+        <mxCell id="qMy3pctc-F5U606VzNz1-24" edge="1" parent="1" source="qMy3pctc-F5U606VzNz1-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;innerLoopWaypoints=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="qMy3pctc-F5U606VzNz1-8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-21" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="stage 6 feature points" vertex="1">
-          <mxGeometry height="40" width="200" x="1470" y="410" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-22" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input oringinal video" vertex="1">
-          <mxGeometry height="30" width="160" x="1300" y="400" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-23" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="video 5" vertex="1">
-          <mxGeometry height="80" width="120" x="1140" y="910" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-25" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="3D cloud points file" vertex="1">
-          <mxGeometry height="80" width="120" x="1760" y="390" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-26" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="output" vertex="1">
-          <mxGeometry height="38.75" width="120" x="1660" y="390" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-28" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="output video with optical flow" vertex="1">
-          <mxGeometry height="30" width="180" x="1110" y="840" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-30" edge="1" parent="1" source="VIaz_GR1P35Ysxikfubc-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;innerLoopWaypoints=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="VIaz_GR1P35Ysxikfubc-10">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="VIaz_GR1P35Ysxikfubc-42" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with ROI" vertex="1">
-          <mxGeometry height="30" width="180" x="1360" y="495" as="geometry" />
+        <mxCell id="qMy3pctc-F5U606VzNz1-19" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="input video with&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;ROI&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="160" x="1350" y="495" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

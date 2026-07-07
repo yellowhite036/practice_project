@@ -37,6 +37,26 @@ RESULTS_DIR = ROOT / "results"
 MERGE_SCRIPT = ROOT / "merge_video.py"
 MERGE_OUTPUT = ROOT / "output.mp4"
 
+STAGE4_MODELS = {
+    "1": "yolov8n.pt",
+    "2": "yolov8s.pt",
+    "3": "yolov8m.pt",
+}
+
+STAGE4_IMGSZ_OPTIONS = {
+    "1": 640,
+    "2": 960,
+    "3": 1280,
+    "4": 1920,
+}
+
+STAGE4_CONF_OPTIONS = {
+    "1": 0.15,
+    "2": 0.25,
+    "3": 0.35,
+    "4": 0.5,
+}
+
 
 def run_live_capture():
     """執行 live.py 擷取直播"""
@@ -153,6 +173,64 @@ def select_modes1(do_flow):
         print("輸入錯誤，請確認 1~2")
 
 
+def select_stage4_settings(do_track):
+    """選擇 Stage4 YOLO 追蹤要用的模型、推論解析度與信心閾值。"""
+    if not do_track:
+        return None, None, None
+
+    print("=" * 60)
+    print("請選擇 Stage4 YOLO 模型")
+    for k, v in STAGE4_MODELS.items():
+        print(f"{k}. {v}")
+    print("=" * 60)
+
+    while True:
+        raw = input("請輸入模型編號 (1~3，預設 1)：").strip() or "1"
+        if raw in STAGE4_MODELS:
+            model = STAGE4_MODELS[raw]
+            break
+        print("輸入錯誤，請確認 1~3")
+
+    print("=" * 60)
+    print("請選擇 Stage4 推論解析度 (imgsz)")
+    for k, v in STAGE4_IMGSZ_OPTIONS.items():
+        print(f"{k}. {v}")
+    print("=" * 60)
+
+    while True:
+        raw = input("請輸入解析度編號 (1~4，預設 1)：").strip() or "1"
+        if raw in STAGE4_IMGSZ_OPTIONS:
+            imgsz = STAGE4_IMGSZ_OPTIONS[raw]
+            break
+        print("輸入錯誤，請確認 1~4")
+
+    print("=" * 60)
+    print("請選擇 Stage4 偵測信心閾值 (conf)")
+    for k, v in STAGE4_CONF_OPTIONS.items():
+        print(f"{k}. {v}")
+    print("5. 自訂數值")
+    print("=" * 60)
+
+    while True:
+        raw = input("請輸入信心閾值編號 (1~5，預設 1)：").strip() or "1"
+        if raw in STAGE4_CONF_OPTIONS:
+            conf = STAGE4_CONF_OPTIONS[raw]
+            break
+        if raw == "5":
+            custom = input("請輸入自訂信心閾值 (0~1 之間，例如 0.2)：").strip()
+            try:
+                conf = float(custom)
+                if 0 <= conf <= 1:
+                    break
+                print("數值必須介於 0 到 1 之間")
+            except ValueError:
+                print("請輸入有效的數字")
+            continue
+        print("輸入錯誤，請確認 1~5")
+
+    print(f"✓ Stage4 設定：model={model} | imgsz={imgsz} | conf={conf}")
+    return model, imgsz, conf
+
 def parse_selection(raw: str, valid):
     normalized = raw.replace("+", " ").replace(",", " ")
     tokens = normalized.split()
@@ -163,7 +241,8 @@ def parse_selection(raw: str, valid):
     return selected if selected else None
 
 
-def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir=None):
+def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir=None,
+                stage4_model: str = None, stage4_imgsz: int = None, stage4_conf: float = None):
     if step_type in ("1", "bg"):
         if mode["name"] == "SKIP": return None
         out_dir = output_dir or mode["workdir"]
@@ -175,6 +254,12 @@ def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir
         out_dir = output_dir or STAGE4_DIR
         output = out_dir / STAGE4_OUTPUT_NAME
         cmd = ["python", STAGE4_SCRIPT, "--source", str(source), "--output", str(output)]
+        if stage4_model:
+            cmd += ["--model", stage4_model]
+        if stage4_imgsz:
+            cmd += ["--imgsz", str(stage4_imgsz)]
+        if stage4_conf is not None:
+            cmd += ["--conf", str(stage4_conf)]
         return "Stage4 - YOLO 追蹤", STAGE4_DIR, cmd, output
 
     if step_type in ("5", "flow"):
@@ -185,14 +270,16 @@ def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir
         return f"Stage5 - {mode5['name']}", mode5["workdir"], cmd, output
 
 
-def run_one_combo(mode, mode5, order):
+def run_one_combo(mode, mode5, order, stage4_model=None, stage4_imgsz=None, stage4_conf=None):
     combo_start = time.time()
     current = SOURCE_VIDEO
     final = None
 
     for step in order:
         step_info = build_step(step, mode, mode5, current, 
-                               RESULTS_DIR if step == order[-1] else None)
+                               RESULTS_DIR if step == order[-1] else None,
+                               stage4_model=stage4_model, stage4_imgsz=stage4_imgsz,
+                               stage4_conf=stage4_conf)
         if step_info is None:
             continue
             
@@ -211,7 +298,11 @@ def run_one_combo(mode, mode5, order):
     tags = []
     for s in order:
         if s == "1": tags.append(mode["name"].lower() if mode["name"] != "SKIP" else "skip")
-        elif s == "4": tags.append("track")
+        elif s == "4":
+            model_tag = (stage4_model or "yolov8n.pt").replace("yolov8", "").replace(".pt", "")
+            imgsz_tag = str(stage4_imgsz) if stage4_imgsz else "640"
+            conf_tag = str(stage4_conf) if stage4_conf is not None else "0.15"
+            tags.append(f"track-{model_tag}-{imgsz_tag}-c{conf_tag}")
         elif s == "5": tags.append(mode5["name"].lower().replace("_optical_flow", "") if mode5["name"] != "SKIP" else "skip")
     
     duration_tag = f"{int(time.time()-combo_start)//60}.{int(time.time()-combo_start)%60:02d}"
@@ -234,6 +325,7 @@ def main():
     do_bg, do_track, do_flow, order = select_stages_and_order()
     modes = select_modes(do_bg)
     modes5 = select_modes1(do_flow)
+    stage4_model, stage4_imgsz, stage4_conf = select_stage4_settings(do_track)
 
     # Step 3: 所有設定完成後，才開始擷取（如果選擇要的話）
     if do_live:
@@ -252,7 +344,7 @@ def main():
 
     for i, (m, m5) in enumerate(combos, 1):
         print(f"開始第 {i}/{len(combos)} 組合...")
-        success, info, elapsed = run_one_combo(m, m5, order)
+        success, info, elapsed = run_one_combo(m, m5, order, stage4_model, stage4_imgsz, stage4_conf)
         status = "成功" if success else "失敗"
         print(f"組合 {status}！耗時 {elapsed:.1f} 秒 → {info if success else '失敗'}")
 
