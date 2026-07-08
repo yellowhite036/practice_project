@@ -408,7 +408,16 @@ def main() -> None:
     )
 
     frame_index = 0
-    progress = tqdm(total=total_frames if total_frames > 0 else None, unit="frame", desc="Processing")
+    # 每 1% 才刷新一次進度條畫面，避免 log 檔被逐 frame 洗版
+    refresh_step = max(1, total_frames // 100) if total_frames > 0 else 30
+    progress = tqdm(
+        total=total_frames if total_frames > 0 else None,
+        unit="frame",
+        desc="Processing",
+        mininterval=0,
+        miniters=refresh_step,
+        bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]",
+    )
 
     while True:
         ok, frame = cap.read()
@@ -437,12 +446,14 @@ def main() -> None:
         if args.roi_mode == "filter" and rois:
             display_tracks = [t for t in tracks if t.current_roi is not None]
 
-        if frame_index % 30 == 0:
-            missed_now = sum(1 for t in tracks if t.missed > 0)
-            print(f"[Frame {frame_index}] imgsz:{args.imgsz} conf:{args.conf} | "
-                  f"YOLO原始:{len(detections)} | "
-                  f"追蹤中:{len(tracks)} | ROI內:{len(display_tracks)} | "
-                  f"missed狀態:{missed_now}")
+        # 統計資訊直接掛在進度條後面（postfix），跟著 miniters 的節奏一起刷新，
+        # 不再另外印一行，避免 log 被逐 frame 洗版
+        missed_now = sum(1 for t in tracks if t.missed > 0)
+        progress.set_postfix_str(
+            f"原始:{len(detections)} 追蹤中:{len(tracks)} "
+            f"ROI內:{len(display_tracks)} missed:{missed_now}",
+            refresh=False,
+        )
 
         # 決定要疊加畫框/文字的背景畫面：
         # 若開啟 --cutout，就用矩形窗口去背後的黑畫布（只保留 display_tracks 的 bbox 範圍）；

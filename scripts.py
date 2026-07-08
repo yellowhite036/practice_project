@@ -1,5 +1,6 @@
 # run_pipeline.py
 import itertools
+import os
 import subprocess
 import sys
 import time
@@ -34,6 +35,7 @@ STAGE4_SCRIPT = "vehicle_yolo_tracker.py"
 STAGE4_OUTPUT_NAME = "YOLO_result.mp4"
 
 RESULTS_DIR = ROOT / "results"
+LOG_DIR = RESULTS_DIR / "log"
 MERGE_SCRIPT = ROOT / "merge_video.py"
 MERGE_OUTPUT = ROOT / "output.mp4"
 
@@ -58,6 +60,70 @@ STAGE4_CONF_OPTIONS = {
 }
 
 
+# ==================== Log 自動輸出工具 ====================
+class Tee:
+    """將輸出同時寫到多個串流（例如：畫面 + log 檔案）"""
+
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for s in self.streams:
+            try:
+                s.write(data)
+                s.flush()
+            except Exception:
+                pass
+
+    def flush(self):
+        for s in self.streams:
+            try:
+                s.flush()
+            except Exception:
+                pass
+
+
+def unique_path(path: Path) -> Path:
+    """若 path 已存在，就在檔名後面加上 -2、-3... 直到找到沒被佔用的檔名，
+    而不是直接覆蓋既有檔案。"""
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    counter = 2
+    while True:
+        candidate = parent / f"{stem}-{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def run_subprocess_logged(cmd, cwd) -> int:
+
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+
+    process = subprocess.Popen(
+        cmd,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+    for line in process.stdout:
+        sys.stdout.write(line)
+    process.wait()
+    sys.stdout.flush()
+    return process.returncode
+# ==========================================================
+
+
 def run_live_capture():
     """執行 live.py 擷取直播"""
     print(f"\n{'=' * 60}")
@@ -69,9 +135,9 @@ def run_live_capture():
         print(f"找不到 live.py：{LIVE_SCRIPT}")
         return False
 
-    result = subprocess.run([sys.executable, str(LIVE_SCRIPT)], cwd=str(ROOT))
-    
-    if result.returncode != 0:
+    returncode = run_subprocess_logged([sys.executable, str(LIVE_SCRIPT)], ROOT)
+
+    if returncode != 0:
         print("live.py 執行失敗")
         return False
 
@@ -270,51 +336,78 @@ def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir
         return f"Stage5 - {mode5['name']}", mode5["workdir"], cmd, output
 
 
-def run_one_combo(mode, mode5, order, stage4_model=None, stage4_imgsz=None, stage4_conf=None):
+def run_one_combo(mode, mode5, order, stage4_model=None, stage4_imgsz=None, stage4_conf=None, combo_index=0):
     combo_start = time.time()
     current = SOURCE_VIDEO
     final = None
 
-    for step in order:
-        step_info = build_step(step, mode, mode5, current, 
-                               RESULTS_DIR if step == order[-1] else None,
-                               stage4_model=stage4_model, stage4_imgsz=stage4_imgsz,
-                               stage4_conf=stage4_conf)
-        if step_info is None:
-            continue
-            
-        name, workdir, cmd, out_path = step_info
-        print(f"\n{'='*50}\n執行 → {name}\n{'='*50}")
-        
-        result = subprocess.run(cmd, cwd=str(workdir))
-        if result.returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
-            return False, f"{name} 執行失敗", time.time() - combo_start
+    # 先用暫存檔名記錄這個組合的完整輸出，等結果影片檔名確定後再改名成一樣的名稱
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    tmp_log_path = LOG_DIR / f"_tmp_combo_{combo_index}.log"
+    log_file = open(tmp_log_path, "a", encoding="utf-8")
+    sys.stdout = Tee(original_stdout, log_file)
+    sys.stderr = sys.stdout
 
-        print(f"完成 → {out_path.name}")
-        current = out_path
-        final = out_path
+    try:
+        for step in order:
+            step_info = build_step(step, mode, mode5, current,
+                                   RESULTS_DIR if step == order[-1] else None,
+                                   stage4_model=stage4_model, stage4_imgsz=stage4_imgsz,
+                                   stage4_conf=stage4_conf)
+            if step_info is None:
+                continue
 
-    # 檔名
-    tags = []
-    for s in order:
-        if s == "1": tags.append(mode["name"].lower() if mode["name"] != "SKIP" else "skip")
-        elif s == "4":
-            model_tag = (stage4_model or "yolov8n.pt").replace("yolov8", "").replace(".pt", "")
-            imgsz_tag = str(stage4_imgsz) if stage4_imgsz else "640"
-            conf_tag = str(stage4_conf) if stage4_conf is not None else "0.15"
-            tags.append(f"track-{model_tag}-{imgsz_tag}-c{conf_tag}")
-        elif s == "5": tags.append(mode5["name"].lower().replace("_optical_flow", "") if mode5["name"] != "SKIP" else "skip")
-    
-    duration_tag = f"{int(time.time()-combo_start)//60}.{int(time.time()-combo_start)%60:02d}"
-    final_name = "-".join(tags) + f"-{duration_tag}.mp4"
-    final_path = final.parent / final_name
-    final.rename(final_path)
+            name, workdir, cmd, out_path = step_info
+            print(f"\n{'='*50}\n執行 → {name}\n{'='*50}")
 
-    return True, final_path, time.time() - combo_start
+            returncode = run_subprocess_logged(cmd, workdir)
+            if returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
+                elapsed = time.time() - combo_start
+                sys.stdout, sys.stderr = original_stdout, original_stderr
+                log_file.close()
+                fail_log_path = unique_path(LOG_DIR / f"combo{combo_index}_failed.log")
+                tmp_log_path.replace(fail_log_path)
+                print(f"（本組合 log 已存於：{fail_log_path}）")
+                return False, f"{name} 執行失敗", elapsed
+
+            print(f"完成 → {out_path.name}")
+            current = out_path
+            final = out_path
+
+        # 檔名
+        tags = []
+        for s in order:
+            if s == "1": tags.append(mode["name"].lower() if mode["name"] != "SKIP" else "skip")
+            elif s == "4":
+                model_tag = (stage4_model or "yolov8n.pt").replace("yolov8", "").replace(".pt", "")
+                imgsz_tag = str(stage4_imgsz) if stage4_imgsz else "640"
+                conf_tag = str(stage4_conf) if stage4_conf is not None else "0.15"
+                tags.append(f"track-{model_tag}-{imgsz_tag}-c{conf_tag}")
+            elif s == "5": tags.append(mode5["name"].lower().replace("_optical_flow", "") if mode5["name"] != "SKIP" else "skip")
+
+        duration_tag = f"{int(time.time()-combo_start)//60}.{int(time.time()-combo_start)%60:02d}"
+        final_name = "-".join(tags) + f"-{duration_tag}.mp4"
+        final_path = unique_path(final.parent / final_name)
+        final.replace(final_path)
+
+        # log 檔名跟影片檔名一樣（只差副檔名），但存到 results/log 資料夾裡
+        log_final_path = unique_path(LOG_DIR / f"{final_path.stem}.log")
+        print(f"（本組合 log 已存於：{log_final_path}）")
+        sys.stdout, sys.stderr = original_stdout, original_stderr
+        log_file.close()
+        tmp_log_path.replace(log_final_path)
+
+        return True, final_path, time.time() - combo_start
+    finally:
+        # 保險：不論成功或例外，都要把 stdout/stderr 還原
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
 
 def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     # Step 1: 先選擇是否擷取
     print(f"\n{'=' * 60}")
@@ -339,12 +432,13 @@ def main():
         print(f"使用現有來源影片：{SOURCE_VIDEO} ({SOURCE_VIDEO.stat().st_size / 1024:.1f} KB)")
 
     # Step 4: 開始執行 Pipeline
+    # 每個組合執行時會自動記錄 log，執行完成後 log 檔名會跟輸出的影片檔名相同（副檔名 .log）
     combos = list(itertools.product(modes, modes5))
     print(f"\n共 {len(combos)} 組合，執行順序：{' → '.join(order)}\n")
 
     for i, (m, m5) in enumerate(combos, 1):
         print(f"開始第 {i}/{len(combos)} 組合...")
-        success, info, elapsed = run_one_combo(m, m5, order, stage4_model, stage4_imgsz, stage4_conf)
+        success, info, elapsed = run_one_combo(m, m5, order, stage4_model, stage4_imgsz, stage4_conf, combo_index=i)
         status = "成功" if success else "失敗"
         print(f"組合 {status}！耗時 {elapsed:.1f} 秒 → {info if success else '失敗'}")
 
