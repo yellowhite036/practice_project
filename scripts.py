@@ -28,6 +28,7 @@ MODES1 = {
     "0": {"name": "SKIP", "workdir": None, "script": None},
     "1": {"name": "DENSE_OPTICAL_FLOW", "workdir": ROOT / "Stage5" / "code", "script": "dense_optical_flow.py"},
     "2": {"name": "SPARSE_OPTICAL_FLOW", "workdir": ROOT / "Stage5" / "code", "script": "sparse_optical_flow.py"},
+    "3": {"name": "IOU_TRACK_DIRECTION", "workdir": ROOT / "Stage5" / "code", "script": "iou_track_direction.py"},
 }
 
 STAGE4_DIR = ROOT / "Stage4" / "code"
@@ -232,11 +233,11 @@ def select_modes1(do_flow):
     print("=" * 60)
 
     while True:
-        raw = input("請輸入 (1~2，可用 + 或 , 分隔)：").strip()
+        raw = input("請輸入 (1~3，可用 + 或 , 分隔)：").strip()
         selected = parse_selection(raw, {k:v for k,v in MODES1.items() if k!="0"})
         if selected:
             return [MODES1[k] for k in selected]
-        print("輸入錯誤，請確認 1~2")
+        print("輸入錯誤，請確認 1~3")
 
 
 def select_stage4_settings(do_track):
@@ -333,6 +334,8 @@ def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir
         out_dir = output_dir or mode5["workdir"]
         output = out_dir / f"{mode5['name']}.mp4"
         cmd = ["python", mode5["script"], "--video", str(source), "--output", str(output)]
+        if mode5["name"] == "IOU_TRACK_DIRECTION":
+            cmd += ["--tracks-input", str(STAGE4_DIR / "tracks.json")]
         return f"Stage5 - {mode5['name']}", mode5["workdir"], cmd, output
 
 

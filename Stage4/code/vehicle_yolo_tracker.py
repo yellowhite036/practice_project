@@ -4,6 +4,7 @@ import subprocess
 import sys
 import argparse
 import json
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
@@ -264,6 +265,11 @@ def cutout_tracked_windows(frame: np.ndarray, tracks: Iterable[Track]) -> np.nda
     return canvas
 
 
+# ---------- 追蹤結果輸出 ----------
+
+def to_frame_list(records: dict[int, list[dict]]) -> list[dict]:
+    return [{"frame_index": idx, "boxes": boxes} for idx, boxes in sorted(records.items())]
+
 # ---------- 主程式 ----------
 
 def parse_args() -> argparse.Namespace:
@@ -296,6 +302,18 @@ def parse_args() -> argparse.Namespace:
         help="矩形窗口去背：只保留被追蹤車輛的 bbox 範圍，其餘背景全黑。"
             "若搭配 --roi-mode filter，ROI 外的車輛也會被塗黑。"
             "預設為開啟，若要關閉請加上 --no-cutout。",
+    )
+    parser.add_argument(
+        "--tracks-output",
+        default="tracks.json",
+        help="把每幀的追蹤結果（track_id / bbox / label / roi）存成 JSON，"
+             "取代其原本的橘色框偵測與光流。預設為 tracks.json，"
+             "若不想輸出，改用 --no-tracks-output。",
+    )
+    parser.add_argument(
+        "--no-tracks-output",
+        action="store_true",
+        help="關閉追蹤結果輸出，即使 --tracks-output 有預設值也不寫檔。",
     )
     return parser.parse_args()
 
@@ -365,7 +383,8 @@ def draw_tracks(frame: np.ndarray, tracks: Iterable[Track]) -> np.ndarray:
 def main() -> None:
     args = parse_args()
     print(f"[設定] model={args.model} | conf={args.conf} | iou={args.iou} | "
-          f"imgsz={args.imgsz} | roi_mode={args.roi_mode} | cutout={args.cutout}")
+          f"imgsz={args.imgsz} | roi_mode={args.roi_mode} | cutout={args.cutout} | "
+          f"tracks_output={args.tracks_output}")
 
 
     roi_path = Path(args.roi)
@@ -407,6 +426,10 @@ def main() -> None:
         (width, height),
     )
 
+    # 預設開啟：只要有給 --tracks-output（預設為 tracks.json）且沒加 --no-tracks-output就逐幀累積追蹤結果
+    tracks_enabled = bool(args.tracks_output) and not args.no_tracks_output
+    track_records: dict[int, list[dict]] | None = defaultdict(list) if tracks_enabled else None
+
     frame_index = 0
     # 每 1% 才刷新一次進度條畫面，避免 log 檔被逐 frame 洗版
     refresh_step = max(1, total_frames // 100) if total_frames > 0 else 30
@@ -445,6 +468,20 @@ def main() -> None:
         display_tracks = tracks
         if args.roi_mode == "filter" and rois:
             display_tracks = [t for t in tracks if t.current_roi is not None]
+
+        if track_records is not None:
+            for track in display_tracks:
+                if track.missed > 0:
+                    continue
+                track_records[frame_index].append(
+                    {
+                        "track_id": track.track_id,
+                        "bbox": [float(v) for v in track.bbox],
+                        "bbox_format": "xyxy",
+                        "label": track.cls,
+                        "roi": track.current_roi,
+                    }
+                )
 
         # 統計資訊直接掛在進度條後面（postfix），跟著 miniters 的節奏一起刷新，
         # 不再另外印一行，避免 log 被逐 frame 洗版
@@ -496,6 +533,15 @@ def main() -> None:
         print("各 ROI 進入次數統計：")
         for name, count in roi_counts.items():
             print(f"  {name}: {count}")
+
+    if track_records is not None:
+        tracks_path = Path(args.tracks_output)
+        tracks_path.parent.mkdir(parents=True, exist_ok=True)
+        tracks_path.write_text(
+            json.dumps(to_frame_list(track_records), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"saved_tracks={tracks_path}")
 
 
 if __name__ == "__main__":
