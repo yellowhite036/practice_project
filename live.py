@@ -1,11 +1,17 @@
+import argparse
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-LIVE_STREAM_URL = "https://www.youtube.com/watch?v=yn_8QwCWsyI"
-DURATION_SECONDS = 60
+parser = argparse.ArgumentParser()
+parser.add_argument("--url", required=True)
+parser.add_argument("--duration", type=int, required=True)
+args = parser.parse_args()
+
+LIVE_STREAM_URL = args.url
+DURATION_SECONDS = args.duration
 OUTPUT_PATH = ROOT / "123.mp4"
 
 print(f"{'=' * 60}")

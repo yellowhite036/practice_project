@@ -11,7 +11,7 @@ SOURCE_VIDEO = ROOT / "123.mp4"
 
 # ==================== 直播擷取設定 ====================
 LIVE_SCRIPT = ROOT / "live.py"
-LIVE_STREAM_URL = "https://www.youtube.com/watch?v=Nz9-_x5ecWc"
+LIVE_STREAM_URL = "youtube.com/watch?v=Nz9-_x5ecWc&pp=ygUS6Lev5rOB5Y2z5pmC5b2x5YOP"
 DURATION_SECONDS = 60
 # ====================================================
 
@@ -136,7 +136,10 @@ def run_live_capture():
         print(f"找不到 live.py：{LIVE_SCRIPT}")
         return False
 
-    returncode = run_subprocess_logged([sys.executable, str(LIVE_SCRIPT)], ROOT)
+    returncode = run_subprocess_logged(
+        [sys.executable, str(LIVE_SCRIPT), "--url", LIVE_STREAM_URL, "--duration", str(DURATION_SECONDS)],
+        ROOT,
+    )
 
     if returncode != 0:
         print("live.py 執行失敗")
@@ -244,6 +247,16 @@ def select_stage4_settings(do_track):
     """選擇 Stage4 YOLO 追蹤要用的模型、推論解析度與信心閾值。"""
     if not do_track:
         return None, None, None
+
+    roi_path = STAGE4_DIR / "roi.json"
+    if roi_path.exists():
+        print("=" * 60)
+        reuse = input("偵測到之前的 ROI 設定，是否繼續使用？(y=沿用 / n=重新標註)：").strip().lower()
+        if reuse != "y":
+            roi_path.unlink()
+            print("已清除舊 ROI，執行時會跳出標註視窗。")
+        else:
+            print("將沿用之前的 ROI 設定。")
 
     print("=" * 60)
     print("請選擇 Stage4 YOLO 模型")
