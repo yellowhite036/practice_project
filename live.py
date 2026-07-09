@@ -27,7 +27,9 @@ print(f"使用的 Python：{sys.executable}")
 
 try:
     result = subprocess.run(
-        [sys.executable, "-m", "yt_dlp", "-g", "-f", "best", LIVE_STREAM_URL],
+        [sys.executable, "-m", "yt_dlp", "-g", "-f", "b",
+         "--remote-components", "ejs:github",
+         "--cookies", str(ROOT / "cookies.txt"), LIVE_STREAM_URL],
         capture_output=True,
         text=True,
         check=True,

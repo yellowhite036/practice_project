@@ -32,6 +32,9 @@ output.mp4
 *.log
 results/log/
 
+# 帳號憑證
+cookies.txt
+
 # 系統/編輯器
 .DS_Store
 Thumbs.db

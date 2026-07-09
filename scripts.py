@@ -11,7 +11,7 @@ SOURCE_VIDEO = ROOT / "123.mp4"
 
 # ==================== 直播擷取設定 ====================
 LIVE_SCRIPT = ROOT / "live.py"
-LIVE_STREAM_URL = "youtube.com/watch?v=Nz9-_x5ecWc&pp=ygUS6Lev5rOB5Y2z5pmC5b2x5YOP"
+LIVE_STREAM_URL = "https://www.youtube.com/watch?v=Nz9-_x5ecWc"
 DURATION_SECONDS = 60
 # ====================================================
 
