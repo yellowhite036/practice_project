@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# YOLO models / weights
+*.pt
+*.onnx
+*.engine
+
+# 影片與媒體
+*.mp4
+*.avi
+*.mov
+*.mkv
+123.mp4
+
+# 執行輸出
+results/
+Stage1/*/*.mp4
+Stage4/code/YOLO_result.mp4
+Stage4/code/tracks.json
+Stage4/code/roi.json
+Stage5/code/*.mp4
+output.mp4
+
+# Log
+*.log
+results/log/
+
+# 系統/編輯器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
