@@ -37,6 +37,7 @@ STAGE4_OUTPUT_NAME = "YOLO_result.mp4"
 
 RESULTS_DIR = ROOT / "results"
 LOG_DIR = RESULTS_DIR / "log"
+COMBINE_DIR = RESULTS_DIR / "combine"
 MERGE_SCRIPT = ROOT / "merge_video.py"
 MERGE_OUTPUT = ROOT / "output.mp4"
 
@@ -352,6 +353,32 @@ def build_step(step_type: str, mode: dict, mode5: dict, source: Path, output_dir
         return f"Stage5 - {mode5['name']}", mode5["workdir"], cmd, output
 
 
+def run_merge_compare(original: Path, processed: Path, output_dir: Path):
+    """呼叫 merge_video.py，把原始影片與這次的結果影片左右並排合併，存到 output_dir。"""
+    if not MERGE_SCRIPT.exists():
+        print(f"找不到 merge_video.py：{MERGE_SCRIPT}，略過合併比較影片。")
+        return None
+
+    output_path = unique_path(output_dir / f"{processed.stem}-compare.mp4")
+    cmd = [
+        "python", str(MERGE_SCRIPT),
+        "--original", str(original),
+        "--processed", str(processed),
+        "--output", str(output_path),
+        "--no-preview",
+    ]
+
+    print(f"\n{'=' * 50}\n產生合併比較影片 → {output_path.name}\n{'=' * 50}")
+    returncode = run_subprocess_logged(cmd, ROOT)
+
+    if returncode != 0 or not output_path.exists() or output_path.stat().st_size == 0:
+        print("合併比較影片產生失敗，略過（不影響主要結果）。")
+        return None
+
+    print(f"合併比較影片完成 → {output_path}")
+    return output_path
+
+
 def run_one_combo(mode, mode5, order, stage4_model=None, stage4_imgsz=None, stage4_conf=None, combo_index=0):
     combo_start = time.time()
     current = SOURCE_VIDEO
@@ -414,6 +441,9 @@ def run_one_combo(mode, mode5, order, stage4_model=None, stage4_imgsz=None, stag
         log_file.close()
         tmp_log_path.replace(log_final_path)
 
+        # 產生與原始影片並排比較的版本，存到 results/combine 資料夾
+        run_merge_compare(SOURCE_VIDEO, final_path, COMBINE_DIR)
+
         return True, final_path, time.time() - combo_start
     finally:
         # 保險：不論成功或例外，都要把 stdout/stderr 還原
@@ -424,6 +454,7 @@ def run_one_combo(mode, mode5, order, stage4_model=None, stage4_imgsz=None, stag
 def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    COMBINE_DIR.mkdir(parents=True, exist_ok=True)
 
     # Step 1: 先選擇是否擷取
     print(f"\n{'=' * 60}")
@@ -449,6 +480,7 @@ def main():
 
     # Step 4: 開始執行 Pipeline
     # 每個組合執行時會自動記錄 log，執行完成後 log 檔名會跟輸出的影片檔名相同（副檔名 .log）
+    # 每個組合成功後也會自動產生與原始影片並排比較的版本，存到 results/combine 資料夾
     combos = list(itertools.product(modes, modes5))
     print(f"\n共 {len(combos)} 組合，執行順序：{' → '.join(order)}\n")
 

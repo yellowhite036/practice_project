@@ -1,27 +1,10 @@
 import cv2
 import numpy as np
-import glob
 import os
+import argparse
 
-folder_path = 'results'
 
-video_extensions = ['*.mp4', '*.avi', '*.mov', '*.mkv', '*.flv', '*.wmv']
-video_paths = []
-for ext in video_extensions:
-    video_paths.extend(glob.glob(os.path.join(folder_path, ext)))
-
-if not video_paths:
-    print("沒有找到影片！")
-    exit()
-
-print(f"找到 {len(video_paths)} 個影片")
-video_paths = video_paths[:9]
-caps = [cv2.VideoCapture(path) for path in video_paths]
-
-fps = 30
-out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'XVID'), fps, (1440, 1080))
-
-def resize_keep_ratio(frame, target_w=480, target_h=360):
+def resize_keep_ratio(frame, target_w, target_h):
     if frame is None or frame.size == 0:
         return np.zeros((target_h, target_w, 3), dtype=np.uint8)
     h, w = frame.shape[:2]
@@ -29,7 +12,7 @@ def resize_keep_ratio(frame, target_w=480, target_h=360):
     new_w = int(w * scale)
     new_h = int(h * scale)
     resized = cv2.resize(frame, (new_w, new_h))
-    
+
     delta_w = target_w - new_w
     delta_h = target_h - new_h
     top = delta_h // 2
@@ -38,47 +21,75 @@ def resize_keep_ratio(frame, target_w=480, target_h=360):
     right = delta_w - left
     return cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(0, 0, 0))
 
-frame_count = 0
-while True:
-    frames = []
-    all_ended = True
-    for i, cap in enumerate(caps):
-        ret, frame = cap.read()
-        if ret:
-            all_ended = False
-        processed = resize_keep_ratio(frame)
-        
-        filename = os.path.basename(video_paths[i])
-        cv2.putText(processed, filename[:28], (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 
-                    0.6, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(processed, filename[:28], (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 
-                    0.6, (0, 0, 0), 1, cv2.LINE_AA)
-        
-        frames.append(processed)
-    
-    if all_ended and frame_count > 0:
-        break
-    
-    while len(frames) < 9:
-        frames.append(np.zeros((360, 480, 3), dtype=np.uint8))
-    
-    row1 = np.hstack(frames[0:3])
-    row2 = np.hstack(frames[3:6])
-    row3 = np.hstack(frames[6:9])
-    combined = np.vstack((row1, row2, row3))
-    
-    out.write(combined)
-    cv2.imshow('3x3 Preview (Press q to stop)', combined)
-    frame_count += 1
-    if frame_count % 100 == 0:
-        print(f"已處理第 {frame_count} 幀", end='\r')
-    
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
 
-for cap in caps:
-    cap.release()
-out.release()
-cv2.destroyAllWindows()
+def main():
+    parser = argparse.ArgumentParser(description="將原始影片與結果影片左右並排合併，方便比較")
+    parser.add_argument("--original", required=True, help="原始影片路徑（放在左邊）")
+    parser.add_argument("--processed", required=True, help="結果影片路徑（放在右邊）")
+    parser.add_argument("--output", default="output.mp4", help="輸出檔案路徑")
+    parser.add_argument("--width", type=int, default=960, help="單邊影片寬度（輸出總寬度會是 2 倍）")
+    parser.add_argument("--height", type=int, default=720, help="單邊影片高度")
+    parser.add_argument("--fps", type=int, default=30, help="輸出影片的 FPS")
+    parser.add_argument("--no-preview", action="store_true", help="不開預覽視窗（自動化 / 無畫面環境請加上）")
+    args = parser.parse_args()
 
-print(f"\n匯出完成！output.mp4 （共 {frame_count} 幀）")
+    if not os.path.exists(args.original):
+        print(f"找不到原始影片：{args.original}")
+        return
+    if not os.path.exists(args.processed):
+        print(f"找不到結果影片：{args.processed}")
+        return
+
+    cap_original = cv2.VideoCapture(args.original)
+    cap_processed = cv2.VideoCapture(args.processed)
+
+    out_dir = os.path.dirname(args.output)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    out_w, out_h = args.width, args.height
+    out = cv2.VideoWriter(args.output, cv2.VideoWriter_fourcc(*'mp4v'), args.fps, (out_w * 2, out_h))
+
+    label_original = os.path.basename(args.original)[:28]
+    label_processed = os.path.basename(args.processed)[:28]
+
+    frame_count = 0
+    while True:
+        ret_o, frame_o = cap_original.read()
+        ret_p, frame_p = cap_processed.read()
+
+        if not ret_o and not ret_p:
+            break
+
+        left = resize_keep_ratio(frame_o if ret_o else None, out_w, out_h)
+        right = resize_keep_ratio(frame_p if ret_p else None, out_w, out_h)
+
+        for frame, label in ((left, label_original), (right, label_processed)):
+            cv2.putText(frame, label, (12, 28), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(frame, label, (12, 28), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6, (0, 0, 0), 1, cv2.LINE_AA)
+
+        combined = np.hstack((left, right))
+        out.write(combined)
+
+        if not args.no_preview:
+            cv2.imshow('Compare (Press q to stop)', combined)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        frame_count += 1
+        if frame_count % 100 == 0:
+            print(f"已處理第 {frame_count} 幀", end='\r')
+
+    cap_original.release()
+    cap_processed.release()
+    out.release()
+    if not args.no_preview:
+        cv2.destroyAllWindows()
+
+    print(f"\n匯出完成！{args.output}（共 {frame_count} 幀）")
+
+
+if __name__ == "__main__":
+    main()
